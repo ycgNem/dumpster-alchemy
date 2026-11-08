@@ -1,0 +1,208 @@
+{
+ "sprites": {
+  "king_portrait": {
+   "x": 0,
+   "y": 0,
+   "w": 96,
+   "h": 96,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    48,
+    95
+   ]
+  },
+  "possum_dead": {
+   "x": 192,
+   "y": 0,
+   "w": 48,
+   "h": 48,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    24,
+    47
+   ]
+  },
+  "possum_idle": {
+   "x": 240,
+   "y": 0,
+   "w": 48,
+   "h": 48,
+   "frames": 2,
+   "fps": 0,
+   "anchor": [
+    24,
+    47
+   ]
+  },
+  "possum_shutdown": {
+   "x": 336,
+   "y": 0,
+   "w": 48,
+   "h": 48,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    24,
+    47
+   ]
+  },
+  "raccoon_gary_angry": {
+   "x": 384,
+   "y": 0,
+   "w": 48,
+   "h": 48,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    24,
+    47
+   ]
+  },
+  "raccoon_gary_happy": {
+   "x": 432,
+   "y": 0,
+   "w": 48,
+   "h": 48,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    24,
+    47
+   ]
+  },
+  "raccoon_gary_idle": {
+   "x": 480,
+   "y": 0,
+   "w": 48,
+   "h": 48,
+   "frames": 2,
+   "fps": 0,
+   "anchor": [
+    24,
+    47
+   ]
+  },
+  "raccoon_linda_angry": {
+   "x": 576,
+   "y": 0,
+   "w": 48,
+   "h": 48,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    24,
+    47
+   ]
+  },
+  "raccoon_linda_happy": {
+   "x": 0,
+   "y": 96,
+   "w": 48,
+   "h": 48,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    24,
+    47
+   ]
+  },
+  "raccoon_linda_idle": {
+   "x": 48,
+   "y": 96,
+   "w": 48,
+   "h": 48,
+   "frames": 2,
+   "fps": 0,
+   "anchor": [
+    24,
+    47
+   ]
+  },
+  "raccoon_mange_angry": {
+   "x": 144,
+   "y": 96,
+   "w": 48,
+   "h": 48,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    24,
+    47
+   ]
+  },
+  "raccoon_mange_happy": {
+   "x": 192,
+   "y": 96,
+   "w": 48,
+   "h": 48,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    24,
+    47
+   ]
+  },
+  "raccoon_mange_idle": {
+   "x": 240,
+   "y": 96,
+   "w": 48,
+   "h": 48,
+   "frames": 2,
+   "fps": 0,
+   "anchor": [
+    24,
+    47
+   ]
+  },
+  "raccoon_pete_angry": {
+   "x": 336,
+   "y": 96,
+   "w": 48,
+   "h": 48,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    24,
+    47
+   ]
+  },
+  "raccoon_pete_happy": {
+   "x": 384,
+   "y": 96,
+   "w": 48,
+   "h": 48,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    24,
+    47
+   ]
+  },
+  "raccoon_pete_idle": {
+   "x": 432,
+   "y": 96,
+   "w": 48,
+   "h": 48,
+   "frames": 2,
+   "fps": 0,
+   "anchor": [
+    24,
+    47
+   ]
+  },
+  "possum_walk": {
+   "x": 0,
+   "y": 144,
+   "w": 32,
+   "h": 32,
+   "frames": 4,
+   "fps": 8,
+   "anchor": [
+    16,
+    31
+   ]
+  }
+ }
+}

@@ -1,0 +1,88 @@
+{
+ "sprites": {
+  "truck_drive": {
+   "x": 0,
+   "y": 0,
+   "w": 112,
+   "h": 64,
+   "frames": 2,
+   "fps": 8,
+   "anchor": [
+    56,
+    63
+   ]
+  },
+  "truck_dump": {
+   "x": 224,
+   "y": 0,
+   "w": 112,
+   "h": 64,
+   "frames": 3,
+   "fps": 0,
+   "anchor": [
+    56,
+    63
+   ]
+  },
+  "compactor_crush": {
+   "x": 0,
+   "y": 64,
+   "w": 48,
+   "h": 48,
+   "frames": 3,
+   "fps": 0,
+   "anchor": [
+    24,
+    47
+   ]
+  },
+  "compactor_idle": {
+   "x": 144,
+   "y": 64,
+   "w": 48,
+   "h": 48,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    24,
+    47
+   ]
+  },
+  "dumpster_closed": {
+   "x": 192,
+   "y": 64,
+   "w": 48,
+   "h": 48,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    24,
+    47
+   ]
+  },
+  "dumpster_open": {
+   "x": 240,
+   "y": 64,
+   "w": 48,
+   "h": 48,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    24,
+    47
+   ]
+  },
+  "dumpster_rattle": {
+   "x": 288,
+   "y": 64,
+   "w": 48,
+   "h": 48,
+   "frames": 2,
+   "fps": 10,
+   "anchor": [
+    24,
+    47
+   ]
+  }
+ }
+}

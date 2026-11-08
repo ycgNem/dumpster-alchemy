@@ -1,0 +1,10 @@
+{
+  "sprites": {
+    "fx_puff": {"x": 130, "y": 0, "w": 16, "h": 16, "frames": 6, "fps": 10, "anchor": [8, 8]},
+    "fx_fly": {"x": 66, "y": 34, "w": 4, "h": 4, "frames": 2, "fps": 12, "anchor": [2, 2]},
+    "fx_spark": {"x": 0, "y": 34, "w": 8, "h": 8, "frames": 4, "fps": 14, "anchor": [3, 3]},
+    "fx_pop": {"x": 0, "y": 0, "w": 32, "h": 32, "frames": 4, "fps": 14, "anchor": [16, 16]},
+    "fx_feather": {"x": 34, "y": 34, "w": 8, "h": 8, "frames": 2, "fps": 3, "anchor": [4, 4]},
+    "fx_drip": {"x": 52, "y": 34, "w": 4, "h": 6, "frames": 3, "fps": 6, "anchor": [2, 0]}
+  }
+}

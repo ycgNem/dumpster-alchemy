@@ -1,0 +1,17 @@
+{
+  "name": "dumpster-alchemy",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "typecheck": "tsc",
+    "preview": "vite preview",
+    "sim": "rolldown src/dev/sim.ts -o .playtest/sim.mjs -f esm -p node --logLevel silent && node .playtest/sim.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
+  }
+}

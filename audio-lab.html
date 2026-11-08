@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Audio Lab · Dumpster Alchemy</title>
+    <style>
+      :root {
+        --bg: #1a1422;
+        --panel: #2a2133;
+        --ink: #eadfc8;
+        --dim: #a99bb3;
+        --ok: #8fcf6a;
+        --warn: #e7b64a;
+        --bad: #ef5d5d;
+        --btn: #6b4f3a;
+        --btn-hi: #8a6849;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 16px;
+        background: var(--bg);
+        color: var(--ink);
+        font: 13px/1.4 ui-monospace, Consolas, monospace;
+      }
+      h1 { font-size: 18px; margin: 0 0 4px; }
+      h2 { font-size: 14px; margin: 18px 0 6px; color: var(--warn); }
+      p { margin: 4px 0; color: var(--dim); }
+      section { background: var(--panel); padding: 10px 12px; border-radius: 6px; margin-bottom: 10px; }
+      .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+      .group { color: var(--dim); min-width: 90px; }
+      button {
+        font: inherit;
+        color: var(--ink);
+        background: var(--btn);
+        border: 1px solid #000;
+        border-radius: 4px;
+        padding: 4px 8px;
+        cursor: pointer;
+      }
+      button:hover { background: var(--btn-hi); }
+      button.on { outline: 2px solid var(--warn); }
+      input[type='range'] { width: 240px; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { text-align: left; padding: 2px 8px; border-bottom: 1px solid #3a3045; white-space: nowrap; }
+      th { color: var(--dim); font-weight: normal; }
+      td.num { text-align: right; }
+      .ok { color: var(--ok); }
+      .warn { color: var(--warn); }
+      .bad { color: var(--bad); }
+      canvas.wave { display: block; background: #120d18; }
+      #status { color: var(--warn); }
+      .scroll { overflow-x: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/audio/lab.ts"></script>
+  </body>
+</html>

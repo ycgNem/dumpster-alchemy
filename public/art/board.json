@@ -1,0 +1,10 @@
+{
+  "sprites": {
+    "cell_a": {"x": 114, "y": 0, "w": 32, "h": 32, "frames": 1, "fps": 0, "anchor": [16, 31]},
+    "cell_b": {"x": 148, "y": 0, "w": 32, "h": 32, "frames": 1, "fps": 0, "anchor": [16, 31]},
+    "cell_hover": {"x": 216, "y": 0, "w": 32, "h": 32, "frames": 1, "fps": 0},
+    "cell_target": {"x": 0, "y": 130, "w": 32, "h": 32, "frames": 1, "fps": 0},
+    "cell_bad": {"x": 182, "y": 0, "w": 32, "h": 32, "frames": 1, "fps": 0},
+    "board_frame": {"x": 0, "y": 0, "w": 112, "h": 128, "frames": 1, "fps": 0, "slice": [8, 8, 8, 8]}
+  }
+}
