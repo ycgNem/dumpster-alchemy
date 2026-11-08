@@ -6,6 +6,7 @@
 import { ITEMS, JUNK_CHAIN, type ItemId } from '../data/items';
 import { act } from '../game/actions';
 import { mergeResult } from '../game/board';
+import { alchemyMove } from './botAlchemy';
 import { clickDumpster } from '../game/dumpster';
 import { eggResult } from '../game/gulls';
 import { inFlight, type GameState } from '../game/state';
@@ -77,6 +78,10 @@ export class Builder {
         if (spot) return act(s, spot.c, spot.r, { kind: 'order', slot }) === 'deliver';
       }
     }
+
+    // 1b. Alchemy (src/dev/botAlchemy.ts): on the King night only the tools that raise junk (Soup,
+    //     Magnet, Leftovers) get brewed and used.
+    if (alchemyMove(s, new Set())) return true;
 
     // 2. Merge the highest pair (junk first: that's the King).
     let best: [Spot, Spot] | null = null;

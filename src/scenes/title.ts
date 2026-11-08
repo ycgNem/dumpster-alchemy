@@ -1,13 +1,17 @@
 // The title: Lot 9 at night, the logo on its cardboard sign, the regulars hanging around, and
-// Continue / New Shift / Trash Almanac / Sound.
-import { isMuted, setMuted } from '../audio';
-import { nightDef } from '../data/nights';
+// Continue (a run between nights) / New Run / Daily Dump / Trash Almanac / Sound, plus the screen
+// agent's fullscreen button in the top-right corner.
+import { isMuted, playRun, setMuted } from '../audio';
+import { NIGHT_COUNT } from '../data/nights';
 import { RACCOONS } from '../data/raccoons';
 import { TUNING } from '../data/tuning';
 import { H, W } from '../engine/screen';
-import { isEndless } from '../game/run';
+import { dateKey } from '../game/meta';
+import { currentNight, dailyNumber } from '../game/run';
+import { copyText } from './share';
 import type { ItemId } from '../data/items';
 import { drawItem } from '../render/board';
+import { drawFullscreenButton } from '../render/fullscreen';
 import { fillRect, placeholderRaccoon } from '../render/greybox';
 import { bigText, buttonColumn, drawAt, drawPanel, drawPaper, fmt, menuBackdrop, type Btn } from '../render/menus';
 import { drawSprite, sprite } from '../render/sprites';
@@ -16,29 +20,53 @@ import { MenuScene, type Music } from './menu';
 
 export class TitleScene extends MenuScene {
   protected readonly music: Music = 'title';
-  /** New Shift over a saved run asks twice; this is when the first press was. */
+  /** New Run over a saved run asks twice; this is when the first press was. */
   private armed = -9;
+  /** When the Daily's share card was last copied (the button says so for a moment). */
+  private copiedAt = -9;
 
   protected buttons(): Btn[] {
     const run = this.flow.run;
     const sure = this.t - this.armed < 3;
     const list: [string, string, Partial<Btn>?][] = [];
-    if (run) list.push(['continue', isEndless(run) ? 'Endless Shift' : 'Continue', { keys: ['Enter', 'Space'], icon: 'icon_play' }]);
+    if (run) list.push(['continue', 'Continue', { keys: ['Enter', 'Space'], icon: 'icon_play' }]);
     list.push([
       'new',
-      sure ? 'Sure? Start over' : 'New Shift',
-      { keys: run ? [] : ['Enter', 'Space'], tip: run && !sure ? 'Starts a new run from night 1. Your saved run is lost.' : undefined },
+      sure ? 'Sure? Start over' : 'New Run',
+      { keys: run ? [] : ['Enter', 'Space'], icon: run ? undefined : 'icon_play', tip: run && !sure ? 'Starts a new run from night 1. Your saved run is lost.' : undefined },
+    ]);
+    const now = new Date();
+    const n = dailyNumber(now);
+    const played = this.flow.dailyPlayed(now);
+    const score = this.flow.meta.daily[dateKey(now)] ?? 0;
+    const label = played ? (this.t - this.copiedAt < 1.5 ? 'Copied!' : `Daily #${n}: ${fmt(score)}`) : `Daily Dump #${n}`;
+    list.push([
+      'daily',
+      label,
+      {
+        icon: 'icon_star',
+        keys: ['KeyD'],
+        tip: played ? 'One try a day. Click to copy your share card. A new one tomorrow.' : "Today's seeded night: a random rule, two Contraband, one try.",
+      },
     ]);
     list.push(['almanac', 'Trash Almanac', { icon: 'icon_book', keys: ['KeyA'] }]);
     list.push(['sound', isMuted() ? 'Sound: OFF' : 'Sound: ON', { icon: isMuted() ? 'icon_mute' : 'icon_sound', keys: ['KeyM'] }]);
-    return buttonColumn(list, W / 2, 162, 156, 22, 6);
+    return buttonColumn(list, W / 2, 162, 156, 20, 4);
   }
 
   protected press(id: string): void {
     const run = this.flow.run;
     switch (id) {
       case 'continue':
-        this.flow.nightCard();
+        this.flow.resume();
+        break;
+      case 'daily':
+        if (!this.flow.dailyPlayed()) this.flow.startDaily();
+        else if (this.flow.meta.lastShare) {
+          copyText(this.flow.meta.lastShare);
+          this.copiedAt = this.t;
+          playRun('copy');
+        }
         break;
       case 'new':
         if (run && this.t - this.armed >= 3) {
@@ -59,6 +87,7 @@ export class TitleScene extends MenuScene {
 
   protected paint(g: CanvasRenderingContext2D): void {
     menuBackdrop(g, this.t, 0.15);
+    drawFullscreenButton(g, this.input, { x: W - 22, y: 3, w: 18, h: 18 });
     this.drawHeap(g);
     this.drawCrew(g);
     this.drawLogo(g);
@@ -66,9 +95,9 @@ export class TitleScene extends MenuScene {
     // Where the saved run is at, on a scrap of paper between the sign and the buttons.
     const run = this.flow.run;
     if (run) {
-      const n = nightDef(run.night);
-      const where = isEndless(run) ? `Endless · best ${fmt(run.endlessBest)}` : `Night ${run.night}: ${n.name}`;
-      const text = `${where} · bank ${fmt(run.bank)}`;
+      const n = currentNight(run);
+      const where = `Night ${run.night} of ${NIGHT_COUNT}: ${n.name}`;
+      const text = `${where} · ${run.strikes} strike${run.strikes === 1 ? '' : 's'} · bank ${fmt(run.bank)}`;
       const r = { x: Math.round(W / 2 - (textWidth(text) + 16) / 2), y: 137, w: textWidth(text) + 16, h: 18 };
       drawPaper(g, r);
       drawText(g, text, W / 2, r.y + 4, { color: 'ink0', align: 'center' });

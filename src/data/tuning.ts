@@ -22,6 +22,12 @@ export const TUNING = {
      */
     intervalSec: 10,
     intervalMinSec: 7,
+    /**
+     * v2: the truck's pace ramps from this hour (1 AM) to its peak at rampFullHour, then holds; the
+     * first hour stays gentle. (Pressure 0 -> 1 in src/game/loads.ts `truckPressure`.)
+     */
+    rampFromHour: 1,
+    rampFullHour: 6,
     /** Items per dump: a [min, max] range at midnight, sliding to the second range by 6 AM. */
     loadStart: [4, 7],
     loadEnd: [5, 7],
@@ -139,7 +145,7 @@ export const TUNING = {
     /** Every hop, scream or peck waits its time x (1 ± jitter). */
     jitter: 0.25,
     /** Shinies the Gull Boss pecks out of the purse each time (never below 0). */
-    bossPeckShinies: 2,
+    bossPeckShinies: 20,
     /** Seconds a new gull swoops in for; seconds the Golden Egg takes to come down after the God. */
     arriveSec: 0.9,
     eggDropSec: 1.7,
@@ -153,7 +159,8 @@ export const TUNING = {
   compactor: { cooldownSec: 8 },
 
   shift: {
-    secondsPerHour: 60,
+    /** v2: about 3.5 minutes a night (docs/V2.md, "Shorter nights"). */
+    secondsPerHour: 35,
     hours: 6,
     nights: 10,
     /** Shinies needed by 6 AM on night 1 (M6 moves quotas into a night table). */
@@ -168,13 +175,13 @@ export const TUNING = {
   /** Each night's one big order (src/game/orders.ts): a long timer, good pay, a bonus not a must. */
   jackpot: {
     /** The jackpot raccoon walks up at a random time in this window (seconds after midnight)... */
-    earliestSec: 60,
-    latestSec: 250,
+    earliestSec: 35,
+    latestSec: 150,
     /** ...once the best junk tonight is at least this far below what it asks for. */
     reachBelow: 2,
     /** It asks for one tier above the best tonight, within the night's `jackpotTiers` (this by default). */
     tiers: [6, 7] as readonly [number, number],
-    patienceSec: 150,
+    patienceSec: 110,
     /** Pays value x this (on top of the raccoon's payMul and the patience bonus)... */
     payMul: 1,
     /** ...but never more than this share of the night's quota in all. */
@@ -203,13 +210,112 @@ export const TUNING = {
     /** ...and brings this many more items per load. */
     loadPerHour: 0.75,
     /** Every hour on the clock pays this many Shinies x the hour (1 AM: 1x, 7 AM: 7x...). */
-    milestonePerHour: 40,
+    milestonePerHour: 400,
     /** A jackpot raccoon comes this often (after the first). */
     jackpotEverySec: 120,
   },
 
   /** Junk value in Shinies: base * growth^(tier - 1), whole numbers under 100, else 2 significant figures. */
-  value: { base: 1.5, growth: 2.4 },
+  value: {
+    base: 1.5,
+    growth: 2.4,
+    /** v2 "money explodes": every value, quota and price is x10 ("+60", "+1,760"). Item values are x this. */
+    scale: 10,
+  },
+
+  /** Contraband numbers (src/data/contraband.ts; the run agent's). */
+  perks: {
+    /** Raccoon Mafia: caps and cans pay this much more in orders; gulls come this much more often. */
+    mafiaPayMul: 3,
+    mafiaGullMul: 2,
+    /** Pyramid Scheme: each scrap order filled tonight makes the next one pay this share more (compounding). */
+    pyramidStep: 0.1,
+    /** Sticky Fingers: chance a delivery pays double. */
+    stickyChance: 0.2,
+    /** Industrial Crusher: Shinies per junk tier crushed. */
+    crusherPerTier: 30,
+    /** Fly Farm: Shinies each smelly piece earns per second. */
+    flyPayPerSec: 3,
+    /** Possum Bribe: the Stink drops to this when it forgives a shutdown. */
+    bribeStinkTo: 50,
+  },
+
+  /**
+   * The run (src/game/run.ts, docs/V2.md "The run"): ten nights in three acts, forks on a map,
+   * Contraband, strikes. Tune the run's difficulty here: the quotas are the ante.
+   */
+  run: {
+    /**
+     * Each night's quota (index = night - 1) before its rule's quotaMul and the elite tag. Night 10
+     * builds the King (no quota). Acts: Lot 9 = 1-4 (4 is The Inspection), The Marina = 5-7 (7 is
+     * the Gull God Raid), Mount Trashmore = 8-10 (10 is Spring Cleaning).
+     */
+    quota: [6000, 7000, 11500, 23000, 26000, 31000, 47000, 43000, 45000, 0] as readonly number[],
+    /** The elite reward tag: the quota x this, and its loot is rarer. */
+    eliteQuotaMul: 1.4,
+    /** Failed nights a run can take; the last one is FIRED. */
+    strikes: 3,
+    /** What a failed night keeps of its Shinies (the night is retried). */
+    lostKeep: 0.5,
+    /** Contraband slots (a Foreman may change it). */
+    slots: 5,
+    /** Cards on a loot pick, and the rarity weights (elite: the rarer table). */
+    lootChoices: 3,
+    lootWeights: { common: 60, uncommon: 30, rare: 10 },
+    eliteWeights: { common: 0, uncommon: 55, rare: 45 },
+    /** Swap Meet prices by rarity, x this per act (act 1, 2, 3). */
+    price: { common: 12000, uncommon: 18000, rare: 26000 },
+    priceAnte: [1, 1.7, 2.4] as readonly number[],
+    /** Selling a Contraband pays this share of its price. */
+    sellShare: 0.5,
+    /** A reroll costs base, then step more each time (per visit). */
+    rerollBase: 2000,
+    rerollStep: 2000,
+    /** The shop reward tag (and the Clearance Card): prices x (1 - this). */
+    shopDiscount: 0.25,
+    /** Consumables: Bin Juice (carry up to juiceMax into a night) and a brewed tool. */
+    juicePrice: 4000,
+    juiceMax: 3,
+    toolPrice: 4500,
+    /** Daily Dump: day #1 is this local date; it plays at this night's difficulty. */
+    dailyEpoch: [2026, 11, 1] as readonly number[],
+    dailyNight: 3,
+  },
+
+  /**
+   * Momentum (src/game/combo.ts, docs/V2.md pillar 2): cascades, the Stench Streak and Fever.
+   * The streak is a heat meter, 0 to 1: merges, cascade links, brews and deliveries add heat; it
+   * holds for the window after each one, then cools. Its steps multiply delivery pay; full heat
+   * starts the Raccoon Rave (Fever).
+   */
+  combo: {
+    /** Seconds between a merge and the cascade it sets off (the visible beat). */
+    cascadeSec: 0.18,
+    /** Seconds the streak holds after each merge, brew or delivery (plus mods.streakWindowBonus)... */
+    windowSec: 1.6,
+    /** ...then it cools this much heat per second. */
+    coolPerSec: 0.3,
+    /** Heat each thing adds (a merge also gets perTier for each tier it makes above 1). */
+    heat: { merge: 0.037, perTier: 0.003, cascade: 0.06, deliver: 0.038, complete: 0.025, brew: 0.1 },
+    /**
+     * The pay steps: at each heat, the share of the way from x1 to mods.streakMaxMul (x2 by default:
+     * x1.25, x1.5, x2).
+     */
+    steps: [
+      [0.25, 0.25],
+      [0.5, 0.5],
+      [0.75, 1],
+    ] as readonly (readonly [heat: number, share: number])[],
+    /** Heat counts this much more until tonight's first Rave (so a quiet night still gets one). */
+    firstFeverMul: 2.5,
+    /** The Raccoon Rave: seconds, delivery pay (at least one above the streak's top), Dumpster clicks free. */
+    feverSec: 8,
+    feverMul: 3,
+    /** Night 1's big moment: at this hour (3 = 3:00 AM) the next truck loses a Bald Tire. */
+    fellOffHour: 3,
+    /** Seconds the tire takes to bounce from the truck to its cell. */
+    fellOffFlightSec: 1.15,
+  },
 
   /** How things move on screen (render only; no game rules here). */
   feel: {

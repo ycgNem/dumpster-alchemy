@@ -9,6 +9,10 @@
 //   dev.go('swap')           title|card|play|swap|almanac|end      dev.wipe()       forget the save
 //   dev.click(320, 180)      press and release at a logical point  dev.run, dev.scene
 //   dev.clockOut()           clock out now (quota met)             dev.next()       the truck's next load
+//   The run (v2): dev.map() the county map   dev.loot() a loot pick   dev.shop() the Swap Meet
+//   dev.perk('mafia') put Contraband in a slot (dev.perk() lists them; dev.perk('-mafia') drops it)
+//   dev.daily() today's Daily Dump (again)   dev.fired() the FIRED card   dev.strikes(2) set them
+//   dev.unlock() every milestone             dev.meta the save's meta
 import { ITEMS, JUNK_CHAIN, type ItemId } from '../data/items';
 import { TUNING } from '../data/tuning';
 import { makePiece } from '../game/board';
@@ -18,7 +22,10 @@ import { nightLength, noteItem, type GameState } from '../game/state';
 import { step } from '../game/step';
 import { addStink } from '../game/stink';
 import { loadArt } from '../render/sprites';
+import { isContraband, MILESTONES } from '../data/contraband';
+import { award, dateKey, type Meta } from '../game/meta';
 import type { Run } from '../game/run';
+import { ALL_CONTRABAND } from '../game/save';
 import type { Flow } from '../scenes/flow';
 import { Bot, BOT_DEFAULT } from './bot';
 
@@ -44,6 +51,15 @@ export interface DevApi {
   click(x: number, y: number): string;
   clockOut(): string;
   next(): number;
+  map(): string;
+  loot(): string;
+  shop(): string;
+  perk(id?: string): string;
+  daily(): string;
+  fired(): string;
+  strikes(n: number): number;
+  unlock(): string;
+  readonly meta: Meta;
 }
 
 declare global {
@@ -54,7 +70,8 @@ declare global {
 
 export function installDev(flow: Flow, update: (dt: number) => void, render: () => void, endStep: () => void): void {
   const play = flow.play;
-  const api: DevApi = {
+  // (The run's helpers are added below, so the literal is asserted.)
+  const api = {
     get state() {
       return play.state;
     },
@@ -197,9 +214,72 @@ export function installDev(flow: Flow, update: (dt: number) => void, render: () 
       render();
       return api.scene;
     },
-  };
+  } as DevApi;
+  // ---- The run (v2) ----
+  Object.assign(api, {
+    map() {
+      flow.map();
+      render();
+      return api.scene;
+    },
+    loot() {
+      const run = flow.ensureRun();
+      run.loot = Math.max(1, run.loot);
+      run.offer = [];
+      flow.loot();
+      render();
+      return api.scene;
+    },
+    shop() {
+      flow.swapMeet();
+      render();
+      return api.scene;
+    },
+    perk(id?: string) {
+      const run = flow.ensureRun();
+      if (!id) return `held: ${run.slots.join(', ') || 'none'} | all: ${ALL_CONTRABAND.join(', ')}`;
+      if (id.startsWith('-')) {
+        run.slots = run.slots.filter((x) => x !== id.slice(1));
+      } else {
+        if (!isContraband(id)) return `no Contraband "${id}"`;
+        if (!run.slots.includes(id)) {
+          if (run.slots.length >= run.maxSlots) run.slots.shift();
+          run.slots.push(id);
+        }
+      }
+      flow.save();
+      return `held: ${run.slots.join(', ')}`;
+    },
+    daily() {
+      delete flow.meta.daily[dateKey(new Date())];
+      flow.startDaily();
+      render();
+      return api.scene;
+    },
+    fired() {
+      const run = flow.ensureRun();
+      run.over = 'fired';
+      run.strikes = TUNING.run.strikes;
+      flow.ended = run;
+      flow.runOver();
+      render();
+      return api.scene;
+    },
+    strikes(n: number) {
+      const run = flow.ensureRun();
+      run.strikes = Math.max(0, Math.min(TUNING.run.strikes - 1, Math.floor(n)));
+      flow.save();
+      return run.strikes;
+    },
+    unlock() {
+      for (const m of MILESTONES) award(flow.meta, m.id);
+      flow.save();
+      return `milestones: ${flow.meta.milestones.join(', ')}`;
+    },
+  });
+  Object.defineProperty(api, 'meta', { get: () => flow.meta });
   window.dev = api;
   console.info(
-    'Dumpster Alchemy dev tools: window.dev (give, fill, stink, shinies, skip, step, seed, win, lose, auto, reloadArt, night, bank, go, wipe, click, clockOut, next, run, scene)',
+    'Dumpster Alchemy dev tools: window.dev (give, fill, stink, shinies, skip, step, seed, win, lose, auto, reloadArt, night, bank, go, wipe, click, clockOut, next, run, scene; map, loot, shop, perk, daily, fired, strikes, unlock, meta)',
   );
 }

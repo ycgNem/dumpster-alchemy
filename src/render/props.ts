@@ -1,8 +1,10 @@
 // The Truck in its lane, the Dumpster and the Compactor in the right column.
 import { TUNING } from '../data/tuning';
 import type { DropKind, Target } from '../game/actions';
-import type { GameState, Truck } from '../game/state';
+import { viewRect } from '../engine/screen';
+import type { GameState, SceneId, Truck } from '../game/state';
 import { trucks } from '../game/truck';
+import { paintBackdrop } from './backdrop';
 import { fillRect, outlineRect, placeholderBackdrop, placeholderCompactor, placeholderDumpster, placeholderTruck } from './greybox';
 import { COMPACTOR, DUMPSTER, TRUCK_BED, TRUCK_OFF_X, TRUCK_STOP, inRect } from './layout';
 import { drawSprite } from './sprites';
@@ -23,9 +25,12 @@ export interface TruckPose {
   flip: boolean;
 }
 
-/** Where a truck parks to dump (its anchor), and where it comes from and goes. */
+/** Where a truck parks to dump (its anchor), and where it comes from and goes (past the visible edge, margins too). */
 export function truckStop(which: number): { x: number; y: number; off: number } {
-  return which === 1 ? { x: TRUCK2_STOP_X, y: TRUCK_STOP.y, off: -64 } : { x: TRUCK_STOP.x, y: TRUCK_STOP.y, off: TRUCK_OFF_X };
+  const v = viewRect();
+  return which === 1
+    ? { x: TRUCK2_STOP_X, y: TRUCK_STOP.y, off: Math.min(-64, v.x - 64) }
+    : { x: TRUCK_STOP.x, y: TRUCK_STOP.y, off: Math.max(TRUCK_OFF_X, v.x + v.w + 64) };
 }
 
 /** Where junk leaves a truck's bed (the bed is behind the cab, so it's mirrored for the second). */
@@ -79,9 +84,12 @@ export function streetlightDim(t: number): boolean {
   return hash(Math.floor(t * 22) + slot) > 0.4;
 }
 
-/** Lot 9 at night (frame 1 is the streetlight gone dim), under everything in the play scene. */
-export function drawBackdrop(g: CanvasRenderingContext2D, v: View): void {
-  if (!drawSprite(g, 'backdrop', 0, 0, { frame: streetlightDim(v.t) ? 1 : 0 })) placeholderBackdrop(g, v.t);
+/**
+ * Tonight's scene (`backdrop_<scene>`, a wide panorama that fills the margins too; frame 1 is the
+ * streetlight gone dim), under everything in the play scene.
+ */
+export function drawBackdrop(g: CanvasRenderingContext2D, v: View, scene: SceneId = 'lot9'): void {
+  if (!paintBackdrop(g, scene, streetlightDim(v.t) ? 1 : 0)) placeholderBackdrop(g, v.t);
 }
 
 export function drawTruck(g: CanvasRenderingContext2D, s: GameState, v: View): void {

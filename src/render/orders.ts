@@ -5,6 +5,7 @@ import { ITEMS, type ItemId } from '../data/items';
 import type { PalName } from '../data/palette';
 import { TUNING } from '../data/tuning';
 import { dropKind, type Target } from '../game/actions';
+import { feverOn } from '../game/combo';
 import { orderValue, raccoonDef, wants } from '../game/orders';
 import type { GameState, Order } from '../game/state';
 import { drawItem } from './board';
@@ -14,7 +15,7 @@ import { orderSlot, orderSlotCount, setOrderSlots, type Rect } from './layout';
 import { bigText } from './menus';
 import { drawNine, drawSprite } from './sprites';
 import { drawText, textWidth, wrapText } from './text';
-import type { View } from './view';
+import type { Handed, View } from './view';
 
 const F = TUNING.feel;
 
@@ -40,19 +41,87 @@ function blinking(v: View, slot: number): boolean {
   return (v.t + slot * 1.3) % period < F.blinkSec;
 }
 
-function portrait(g: CanvasRenderingContext2D, o: Order, slot: number, v: View, fx: number, fy: number): void {
+function portrait(g: CanvasRenderingContext2D, o: Order, slot: number, v: View, fx: number, fy: number, rave = false): void {
   const mood = o.mood === 'waiting' ? 'idle' : o.mood;
   const blink = mood === 'idle' && blinking(v, slot);
   // Angry raccoons shake; happy ones hop.
-  const dx = o.mood === 'angry' && !o.jackpot ? Math.round(Math.sin(v.t * 50) * 1.5) : 0;
-  const dy = o.mood === 'happy' && o.t < 0.5 ? -Math.round(Math.abs(Math.sin(o.t * 12)) * 3) : 0;
+  let dx = o.mood === 'angry' && !o.jackpot ? Math.round(Math.sin(v.t * 50) * 1.5) : 0;
+  let dy = o.mood === 'happy' && o.t < 0.5 ? -Math.round(Math.abs(Math.sin(o.t * 12)) * 3) : 0;
+  let flip = false;
+  // The Raccoon Rave (src/game/combo.ts): everyone at the counter bounces to the beat and sways,
+  // turning to face the other way every couple of beats.
+  if (rave && o.mood !== 'angry') {
+    const beat = v.t * 2.13 + slot * 0.5;
+    dy -= Math.round(Math.abs(Math.sin(beat * Math.PI)) * 4);
+    dx += Math.round(Math.sin(beat * Math.PI * 0.5) * 2);
+    flip = Math.floor(beat / 2) % 2 === 1;
+  }
+  // Just handed something: a hug squeezes them a pixel; a sniff leans them in.
+  const h = handedNow(v, slot);
+  if (h && !h.hug) dx += Math.round(Math.min(1, (v.t - h.t) * 4) * 2);
   const idle = `raccoon_${o.raccoon}_idle`;
   const name = `raccoon_${o.raccoon}_${mood}`;
   // A missing happy or angry pose falls back to the idle one (the shake and hop still sell it).
   const ok =
-    drawSprite(g, name, fx + dx, fy + dy, mood === 'idle' ? { frame: blink ? 1 : 0 } : {}) ||
-    drawSprite(g, idle, fx + dx, fy + dy, { frame: blink ? 1 : 0 });
+    drawSprite(g, name, fx + dx, fy + dy, mood === 'idle' ? { frame: blink ? 1 : 0, flip } : { flip }) ||
+    drawSprite(g, idle, fx + dx, fy + dy, { frame: blink ? 1 : 0, flip });
   if (!ok) placeholderRaccoon(g, o.raccoon, mood, blink, fx + dx, fy + dy);
+  if (h) drawHanded(g, h, v, fx + dx, fy + dy);
+}
+
+/** Seconds a raccoon hugs or sniffs what it was handed. */
+const HANDED_SEC = 1.3;
+
+function handedNow(v: View, slot: number): Handed | null {
+  const h = v.handed[slot];
+  return h && v.t - h.t < HANDED_SEC ? h : null;
+}
+
+/**
+ * What the raccoon was just handed, in its paws: hugged tight with hearts floating up (the good
+ * stuff), or held out at arm's length and sniffed, stink lines rising off it (the rest).
+ */
+function drawHanded(g: CanvasRenderingContext2D, h: Handed, v: View, fx: number, fy: number): void {
+  const t = v.t - h.t;
+  // It pops up into the paws, and blinks out at the end.
+  if (t > HANDED_SEC - 0.2 && Math.floor(t * 24) % 2 === 1) return;
+  const rise = Math.round(Math.min(1, t / 0.12) * 6);
+  if (h.hug) {
+    const squeeze = Math.round(Math.abs(Math.sin(t * 9)) * 2);
+    drawItem(g, h.id, fx + 3, fy + 4 - rise, { sx: (32 + squeeze) / 32, sy: (32 - squeeze) / 32, phase: 0 });
+    for (let i = 0; i < 3; i++) {
+      const k = t - i * 0.25;
+      if (k < 0) continue;
+      const hx = fx - 10 + i * 11 + Math.round(Math.sin(k * 6 + i) * 2);
+      const hy = Math.round(fy - 36 - k * 14);
+      heart(g, hx, hy);
+    }
+  } else {
+    drawItem(g, h.id, fx + 15, fy + 2 - rise, { phase: 0 });
+    // Stink lines off it while they sniff.
+    for (let i = 0; i < 2; i++) {
+      for (let j = 0; j < 7; j++) {
+        if ((j + Math.floor(t * 12)) % 4 === 3) continue;
+        const sx = fx + 10 + i * 9 + Math.round(Math.sin(j / 2 + t * 8 + i) * 1.5);
+        fillRect(g, { x: sx, y: fy - 30 - rise - j, w: 1, h: 1 }, j % 3 === 0 ? 'toxic2' : 'grime3');
+      }
+    }
+  }
+}
+
+/** A 5 x 4 pixel heart. */
+function heart(g: CanvasRenderingContext2D, x: number, y: number): void {
+  const rows = ['.#.#.', '#####', '.###.', '..#..'];
+  rows.forEach((row, j) => {
+    for (let i = 0; i < row.length; i++) {
+      if (row[i] === '#') {
+        fillRect(g, { x: x + i - 1, y: y + j - 1, w: 3, h: 3 }, 'ink0');
+      }
+    }
+  });
+  rows.forEach((row, j) => {
+    for (let i = 0; i < row.length; i++) if (row[i] === '#') fillRect(g, { x: x + i, y: y + j, w: 1, h: 1 }, j === 0 ? 'white' : 'pink');
+  });
 }
 
 function patienceColour(p: number): PalName {
@@ -83,6 +152,7 @@ export function drawOrders(g: CanvasRenderingContext2D, s: GameState, v: View, h
   if (orderSlotCount() !== s.orders.length) setOrderSlots(s.orders.length);
   // The King is crowned: the regulars leave the counter to cheer in front of the board (fx.ts).
   const crowning = s.endReason === 'king';
+  const rave = feverOn(s);
   for (let slot = 0; slot < s.orders.length; slot++) {
     const base = orderSlot(slot);
     // Four cards are shorter: the name on the top line, one price for the order beside it.
@@ -104,7 +174,7 @@ export function drawOrders(g: CanvasRenderingContext2D, s: GameState, v: View, h
     else if (o.scrap) cornerTag(g, r, 'SCRAP', 'steel3', 'ink0', compact);
 
     const def = raccoonDef(o.raccoon);
-    portrait(g, o, slot, v, r.x + 28, r.y + (compact ? 50 : 52));
+    portrait(g, o, slot, v, r.x + 28, r.y + (compact ? 50 : 52), rave);
     // Tonight's rule pays more (Takeout Tuesday and Rush Hour x1.5, Seagull Season's gull orders
     // x2): a yellow sticker says so.
     const gullOrder = o.wants.some((id) => ITEMS[id].chain === 'gull');

@@ -11,34 +11,42 @@
 //
 // Drawn by code with the sprites there are; `moon` and `gull_fly` are used when the art lands.
 import { PAL, type PalName } from '../data/palette';
-import type { GameState } from '../game/state';
+import { viewRect } from '../engine/screen';
+import type { GameState, SceneId } from '../game/state';
+import { backdropSprite } from './backdrop';
 import { fillRect, outlineRect, placeholderTruck } from './greybox';
 import { STINK, TRUCK_LANE, TRUCK_STOP } from './layout';
 import { popup } from './popups';
 import { truckPose } from './props';
-import { drawSprite, sprite } from './sprites';
+import { drawRunLot } from './run';
+import { drawSprite } from './sprites';
 import { drawText, textWidth } from './text';
 import type { View } from './view';
 
 export type Twist = 'gulls' | 'heat' | 'moon' | 'rush' | 'bulk' | 'inspection' | 'spring' | 'endless';
 
-/** Which twist tonight has (nights 1-3 have none: they teach the basics). */
+/**
+ * Which twist tonight has, from its rule (src/data/nights.ts RULES; the run deals rules to nights,
+ * so it's the rule, not the night number). The Gull God Raid circles gulls too; the run's own marks
+ * (condemned cells, the God) are src/render/run.ts.
+ */
 export function twistOf(s: GameState): Twist | null {
   if (s.goal === 'endless') return 'endless';
-  switch (s.night) {
-    case 4:
+  switch (s.rule) {
+    case 'gulls':
+    case 'raid':
       return 'gulls';
-    case 5:
+    case 'heat':
       return 'heat';
-    case 6:
+    case 'rush':
       return 'rush';
-    case 7:
+    case 'moon':
       return 'moon';
-    case 8:
+    case 'bulk':
       return 'bulk';
-    case 9:
+    case 'inspection':
       return 'inspection';
-    case 10:
+    case 'spring':
       return 'spring';
     default:
       return null;
@@ -65,7 +73,7 @@ export function updateTwists(s: GameState, dt: number): void {
     // Only while our truck is away and not due for a while, so they never overlap.
     if (rush.since > RUSH_EVERY && s.truck.phase === 'away' && s.truck.timer > 6) {
       rush.on = true;
-      rush.x = -70;
+      rush.x = Math.min(-70, viewRect().x - 60); // (from past the visible edge, margins too)
       rush.honked = false;
     }
     return;
@@ -75,7 +83,7 @@ export function updateTwists(s: GameState, dt: number): void {
     rush.honked = true;
     popup('HONK HONK!', rush.x + 30, TRUCK_LANE.y + 10, { color: 'yellow', clamp: TRUCK_LANE, rise: 4 });
   }
-  if (rush.x > 720) {
+  if (rush.x > Math.max(720, viewRect().x + viewRect().w + 60)) {
     rush.on = false;
     rush.since = 0;
   }
@@ -86,7 +94,7 @@ export function updateTwists(s: GameState, dt: number): void {
 
 export function drawTwistSky(g: CanvasRenderingContext2D, s: GameState, v: View): void {
   const tw = twistOf(s);
-  if (tw === 'heat') shimmer(g, v.t);
+  if (tw === 'heat') shimmer(g, v.t, s.scene);
   else if (tw === 'gulls') circlingGulls(g, v.t);
   else if (tw === 'moon') moon(g, v.t);
   else if (tw === 'spring') bunting(g, v.t);
@@ -94,17 +102,20 @@ export function drawTwistSky(g: CanvasRenderingContext2D, s: GameState, v: View)
 }
 
 /** The backdrop's sky and fence wobble sideways in thin strips, like air over hot tarmac, under a warm haze. */
-function shimmer(g: CanvasRenderingContext2D, t: number): void {
-  const d = sprite('backdrop');
-  if (d) {
+function shimmer(g: CanvasRenderingContext2D, t: number, scene: SceneId = 'lot9'): void {
+  // (The backdrop is a wide panorama anchored on the stage's top-left: its rows run margin to margin.)
+  const b = backdropSprite(scene);
+  if (b) {
+    const d = b.d;
     for (let y = 16; y < 104; y += 2) {
       const off = Math.round(Math.sin(t * 3.1 + y * 0.42) * (1 + Math.sin(t * 0.9 + y * 0.07)) * 1.2);
       if (off === 0) continue;
-      g.drawImage(d.img, d.x, d.y + y, d.w, 2, off, y, d.w, 2);
+      g.drawImage(d.img, d.x, d.y + d.ay + y, d.w, 2, off - d.ax, y, d.w, 2);
     }
   }
   const h = haze();
-  if (h) g.drawImage(h, 0, Math.round(Math.sin(t * 1.3)));
+  const vr = viewRect();
+  if (h) for (let x = vr.x - (((vr.x % 640) + 640) % 640); x < vr.x + vr.w; x += 640) g.drawImage(h, x, Math.round(Math.sin(t * 1.3)));
 }
 
 let hazeImg: HTMLCanvasElement | null = null;
@@ -216,6 +227,7 @@ function otherTruck(g: CanvasRenderingContext2D, v: View): void {
 // On the lot (after the truck, the board and the HUD).
 
 export function drawTwistLot(g: CanvasRenderingContext2D, s: GameState, v: View): void {
+  drawRunLot(g, s, v);
   const tw = twistOf(s);
   if (tw === 'bulk') bulkSign(g, s);
   // (Heat Wave's flies are the smelly junk's now, fx.ts: flies mean "clear this".)

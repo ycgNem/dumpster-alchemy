@@ -6,8 +6,10 @@
 import { playUi } from '../audio';
 import type { ItemId } from '../data/items';
 import { PAL, type PalName } from '../data/palette';
-import { H, W } from '../engine/screen';
+import { H, W, viewRect } from '../engine/screen';
 import type { Input } from '../engine/input';
+import type { SceneId } from '../game/state';
+import { paintBackdrop } from './backdrop';
 import { drawItem } from './board';
 import { cardboard, fillRect, outlineRect, paper, placeholderBackdrop } from './greybox';
 import { inRect, type Rect } from './layout';
@@ -208,14 +210,14 @@ export function drawTooltip(g: CanvasRenderingContext2D, text: string, px: numbe
  * A paper note anchored to a thing (not the pointer): above it, left of it or below it, kept on
  * screen. Used for the lot's tooltips and the Swap Meet's, so a tip never sits on a header.
  */
-export function drawTooltipAt(g: CanvasRenderingContext2D, text: string, at: Rect, side: 'above' | 'left' | 'below', maxW = 170): Rect {
+export function drawTooltipAt(g: CanvasRenderingContext2D, text: string, at: Rect, side: 'above' | 'left' | 'right' | 'below', maxW = 170): Rect {
   const lines = wrapText(text, maxW);
   const w = Math.max(...lines.map((l) => textWidth(l))) + 10;
   const h = lines.length * 10 + 6;
   let x = Math.round(at.x + at.w / 2 - w / 2);
   let y = Math.round(at.y - h - 4);
-  if (side === 'left') {
-    x = Math.round(at.x - w - 6);
+  if (side === 'left' || side === 'right') {
+    x = Math.round(side === 'left' ? at.x - w - 6 : at.x + at.w + 6);
     y = Math.round(at.y + at.h / 2 - h / 2);
   } else if (side === 'below') {
     y = Math.round(at.y + at.h + 4);
@@ -256,23 +258,25 @@ export function drawStamp(g: CanvasRenderingContext2D, won: boolean, cx: number,
   bigText(g, label, cx, cy - 9, 2, { color: 'red', align: 'center' });
 }
 
-/** Dim the whole screen with ink. */
+/** Dim the whole screen (the whole buffer, margins too) with ink. */
 export function dim(g: CanvasRenderingContext2D, a: number): void {
   if (a <= 0) return;
   const old = g.globalAlpha;
   g.globalAlpha = Math.min(1, a);
   g.fillStyle = PAL.ink0;
-  g.fillRect(0, 0, W, H);
+  const v = viewRect();
+  g.fillRect(v.x, v.y, v.w, v.h);
   g.globalAlpha = old;
 }
 
-/** Lot 9 at night behind a menu, dimmed a little. */
-export function menuBackdrop(g: CanvasRenderingContext2D, t: number, dimBy = 0.35): void {
+/** A scene's backdrop (Lot 9 unless told otherwise) behind a menu, margins and all, dimmed a little. */
+export function menuBackdrop(g: CanvasRenderingContext2D, t: number, dimBy = 0.35, scene: SceneId = 'lot9'): void {
   // The streetlight buzzes off for a blink now and then (frame 1).
   const flicker = Math.sin(t * 13) > 0.97 || (t % 7.3 > 7.1 && Math.sin(t * 40) > 0);
-  if (!drawAt(g, 'backdrop', 0, 0, { frame: flicker ? 1 : 0 })) {
+  if (!paintBackdrop(g, scene, flicker ? 1 : 0)) {
     placeholderBackdrop(g, t);
-    fillRect(g, { x: 0, y: 104, w: W, h: H - 104 }, 'dirt0');
+    const v = viewRect();
+    fillRect(g, { x: v.x, y: 104, w: v.w, h: v.y + v.h - 104 }, 'dirt0');
   }
   dim(g, dimBy);
 }

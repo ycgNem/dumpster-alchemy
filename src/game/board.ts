@@ -31,6 +31,8 @@ export class Board {
   readonly cols: number;
   readonly rows: number;
   private readonly cells: (Piece | null)[];
+  /** Condemned cells (The Inspection, src/game/perks.ts): never empty, nothing lands or moves there. */
+  private readonly blocked = new Set<number>();
 
   constructor(cols: number, rows: number) {
     this.cols = cols;
@@ -51,13 +53,27 @@ export class Board {
     this.cells[r * this.cols + c] = p;
   }
 
-  /** Every empty cell as [col, row]. */
+  /** Every empty cell as [col, row] (a condemned cell is never empty). */
   empties(): [number, number][] {
     const out: [number, number][] = [];
     for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) if (!this.get(c, r)) out.push([c, r]);
+      for (let c = 0; c < this.cols; c++) if (!this.get(c, r) && !this.blocked.has(r * this.cols + c)) out.push([c, r]);
     }
     return out;
+  }
+
+  /** Condemn a cell: from now on nothing lands or moves there. */
+  block(c: number, r: number): void {
+    if (this.inside(c, r)) this.blocked.add(r * this.cols + c);
+  }
+
+  isBlocked(c: number, r: number): boolean {
+    return this.blocked.has(r * this.cols + c);
+  }
+
+  /** Every condemned cell as [col, row]. */
+  blockedCells(): [number, number][] {
+    return [...this.blocked].map((i) => [i % this.cols, Math.floor(i / this.cols)]);
   }
 
   /** Every piece with its cell, row by row. */
@@ -82,6 +98,7 @@ export class Board {
 
   clear(): void {
     this.cells.fill(null);
+    this.blocked.clear();
   }
 
   fillRatio(): number {

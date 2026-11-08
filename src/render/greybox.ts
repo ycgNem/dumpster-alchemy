@@ -3,7 +3,8 @@
 // exists. Items are coloured squares with their tier number; the rest is cardboard and blobs.
 import { ITEMS, type ItemId } from '../data/items';
 import { PAL, type PalName } from '../data/palette';
-import { H, W } from '../engine/screen';
+import { W, viewRect } from '../engine/screen';
+import { placeholderBrew } from './alchemy';
 import { BOARD, TRUCK_LANE, type Rect } from './layout';
 import { drawText } from './text';
 
@@ -61,6 +62,8 @@ export function itemColour(id: ItemId): PalName {
  */
 export function placeholderItem(g: CanvasRenderingContext2D, id: ItemId, fx: number, fy: number, sx = 1, sy = 1): void {
   const d = ITEMS[id];
+  // Recipe results: a flask (tool) or a crate (treasure) until the `recipes` atlas lands.
+  if (d.chain === 'brew') return placeholderBrew(g, id, fx, fy, sx, sy);
   const colour = itemColour(id);
   const w = Math.round(26 * sx);
   const h = Math.round(26 * sy);
@@ -250,29 +253,32 @@ export function placeholderCell(g: CanvasRenderingContext2D, r: Rect, odd: boole
   fillRect(g, { x: r.x + r.w - 1, y: r.y, w: 1, h: r.h }, 'dirt0');
 }
 
-/** Lot 9 at night: sky, stars, the streetlight, the fence, the truck lane, the ground. */
+/** Lot 9 at night: sky, stars, the streetlight, the fence, the truck lane, the ground (margins too). */
 export function placeholderBackdrop(g: CanvasRenderingContext2D, t: number): void {
-  fillRect(g, { x: 0, y: 0, w: W, h: 56 }, 'night0');
+  const v = viewRect();
+  const x0 = v.x - (((v.x % 8) + 8) % 8);
+  const x1 = v.x + v.w;
+  fillRect(g, { x: v.x, y: v.y, w: v.w, h: 56 - v.y }, 'night0');
   for (let i = 0; i < 40; i++) {
     const x = (i * 97) % W;
     const y = (i * 53) % 44;
     px(g, x, y, i % 7 === 0 && Math.sin(t * 2 + i) > 0 ? 'night3' : 'night2');
   }
   // Far heaps.
-  for (let i = 0; i < 9; i++) {
+  for (let i = Math.floor(v.x / 80) - 1; i < Math.ceil(x1 / 80) + 1; i++) {
     const cx = i * 80 + 20;
-    const h = 8 + ((i * 37) % 9);
+    const h = 8 + ((((i * 37) % 9) + 9) % 9);
     fillRect(g, { x: cx - 30, y: 56 - h, w: 60, h }, 'night1');
     fillRect(g, { x: cx - 18, y: 56 - h - 4, w: 36, h: 4 }, 'night1');
   }
-  for (let x = 0; x < W; x += 8) fillRect(g, { x, y: 40, w: 1, h: 16 }, 'night2');
-  fillRect(g, { x: 0, y: 44, w: W, h: 1 }, 'night2');
+  for (let x = x0; x < x1; x += 8) fillRect(g, { x, y: 40, w: 1, h: 16 }, 'night2');
+  fillRect(g, { x: v.x, y: 44, w: v.w, h: 1 }, 'night2');
   // The truck lane.
-  fillRect(g, TRUCK_LANE, 'dirt0');
-  for (let x = 4; x < W; x += 24) fillRect(g, { x, y: TRUCK_LANE.y + 23, w: 12, h: 2 }, 'dirt1');
-  fillRect(g, { x: 0, y: TRUCK_LANE.y + TRUCK_LANE.h - 1, w: W, h: 1 }, 'ink0');
+  fillRect(g, { ...TRUCK_LANE, x: v.x, w: v.w }, 'dirt0');
+  for (let x = x0 - 4; x < x1; x += 24) fillRect(g, { x, y: TRUCK_LANE.y + 23, w: 12, h: 2 }, 'dirt1');
+  fillRect(g, { x: v.x, y: TRUCK_LANE.y + TRUCK_LANE.h - 1, w: v.w, h: 1 }, 'ink0');
   // The ground everything else sits on.
-  fillRect(g, { x: 0, y: 104, w: W, h: H - 104 }, 'ink1');
+  fillRect(g, { x: v.x, y: 104, w: v.w, h: v.y + v.h - 104 }, 'ink1');
   // The streetlight, top-left of the board.
   fillRect(g, { x: BOARD.x - 14, y: 4, w: 3, h: 100 }, 'ink0');
   fillRect(g, { x: BOARD.x - 14, y: 4, w: 22, h: 3 }, 'ink0');

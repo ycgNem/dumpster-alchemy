@@ -20,17 +20,18 @@ and duct tape.
   cue, the tier number never shows in final art.
 - Integer zoom inside the game (sprites, text and popups only ever scale by whole numbers);
   `imageSmoothingEnabled = false` everywhere.
-- **Screen scale** (`src/engine/screen.ts`): the 640 × 360 screen is blown up by a whole number
-  when that fills at least ~85% of the window, else by the larger fractional "fit" scale,
-  nearest-neighbour (`image-rendering: pixelated`). A little pixel unevenness beats a game a
-  quarter of the window's size (a 1366 × 657 laptop window gets ~1.8x, not 1x). A phone held
-  upright shows a "turn your phone" card instead.
+- **Screen scale** (`src/engine/screen.ts`, v2): the 640 × 360 stage sits centred in a buffer
+  that takes the window's shape (wider windows get more width, 16:10 and 4:3 more height), blown
+  up by the fractional fit scale, nearest-neighbour. No bars, nothing cropped; a little pixel
+  unevenness is accepted. The margins show more of the scene (the backdrops are wide panoramas)
+  and full-screen fills cover the whole buffer (`viewRect()`). A phone held upright shows a
+  "turn your phone" card instead.
 
 ## Sizes
 
 | Thing | Size | Notes |
 |---|---|---|
-| Screen | 640 × 360 logical | whole-number or fit scale (see Rules), letterboxed |
+| Screen | 640 × 360 logical stage | fit scale in a window-shaped buffer, no bars (see Rules) |
 | Board cell | 32 × 32 | 9 × 7 cells = 288 × 224 |
 | Items (junk, gulls, eggs) | 32 × 32 canvas, ~28 × 28 drawn | room for the wobble and the outline |
 | Raccoon portraits | 48 × 48 | 2 frames: idle and blink; plus happy and angry |
@@ -38,7 +39,7 @@ and duct tape.
 | The Truck | 112 × 64 | wheels and the reverse light animate |
 | The Dumpster | 48 × 48 | lid closed, open, rattling |
 | UI icons | 16 × 16 | Shinies, stink, clock, lid charge |
-| Backdrop | 640 × 360 | sky, fence, heaps, the streetlight; parallax not needed |
+| Backdrop | 960 × 640 panorama, stage at 160,140 | one per scene (Lot 9, the Marina, Mount Trashmore); parallax not needed |
 
 ## Palette (first pass, 2026-11-07)
 

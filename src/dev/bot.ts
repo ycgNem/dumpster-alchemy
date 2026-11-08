@@ -12,6 +12,7 @@ import { eggResult } from '../game/gulls';
 import { canClockOut, clockOut } from '../game/shift';
 import { inFlight, nightLength, type GameState } from '../game/state';
 import { isSmelly, smellRate, stinkLimit } from '../game/stink';
+import { alchemyMove } from './botAlchemy';
 
 export interface BotOpts {
   /** Seconds between actions (a person playing well manages about one drag a second). */
@@ -31,7 +32,7 @@ export interface BotOpts {
   smellWeight: number;
   /** With the Stink past this share of the limit and rising, crush the least useful smelly piece whenever the Crusher is ready. */
   crushSmellyAt: number;
-  /** While a jackpot waits, don't hand junk this many tiers below what it wants (or higher) to others. */
+  /** While a jackpot waits, don't hand junk from this many tiers below what it wants, up to its tier, to others. */
   saveForJackpot: number;
 }
 
@@ -102,12 +103,16 @@ export class Bot {
         if (id === undefined || o.got[k]) continue;
         wanted.add(id);
         const d = ITEMS[id];
-        const save = !o.jackpot && d.chain === 'junk' && d.tier >= jackpotTier - this.o.saveForJackpot && o.patience > 8;
+        // (Only what can still become the jackpot's want: junk above it, like night 1's tire, sells.)
+        const save = !o.jackpot && d.chain === 'junk' && d.tier >= jackpotTier - this.o.saveForJackpot && d.tier <= jackpotTier && o.patience > 8;
         if (save) continue;
         const spot = spots.find((p) => p.id === id);
         if (spot) return act(s, spot.c, spot.r, { kind: 'order', slot }) === 'deliver';
       }
     }
+
+    // 1b. Alchemy: hand in a treasure, use a tool, or brew two idle ingredients (botAlchemy.ts).
+    if (alchemyMove(s, wanted)) return true;
 
     // 2. A Golden Egg: crack it over the best junk (one an order wants two tiers up, if any).
     const egg = spots.find((p) => p.id === 'golden_egg');
@@ -176,7 +181,7 @@ export class Bot {
       const score = d.tier + (d.chain === 'gull' ? 0.5 : 0) + smell + (wanted.has(to) ? 100 : 0) + (forJackpot ? 150 : 0);
       if (score > bestScore) {
         bestScore = score;
-        best = [a, b];
+        best = cascadePair(s, list, to) ?? [a, b];
       }
     }
     if (best) return act(s, best[0].c, best[0].r, { kind: 'cell', c: best[1].c, r: best[1].r }) === 'merge';
@@ -195,9 +200,23 @@ export class Bot {
   }
 }
 
+/**
+ * Of the pieces of one kind, a pair that sets off a cascade (src/game/combo.ts): the second one
+ * already sits next to a twin of what they make. Null if no drop does.
+ */
+function cascadePair(s: GameState, list: readonly Spot[], to: ItemId): [Spot, Spot] | null {
+  for (const b of list) {
+    const twin = [[0, -1], [-1, 0], [1, 0], [0, 1]].some(([dc = 0, dr = 0]) => s.board.get(b.c + dc, b.r + dr)?.id === to);
+    if (!twin) continue;
+    const a = list.find((x) => x !== b);
+    if (a) return [a, b];
+  }
+  return null;
+}
+
 /** Lower is more crushable: gulls, then smelly, low tier, no partner, not wanted; never an egg or juice. */
 function junkScore(p: Spot, counts: Map<ItemId, number>, wanted: Set<ItemId>): number {
   const d = ITEMS[p.id];
-  const base = d.chain === 'gull' ? d.tier - 3 : d.chain === 'special' ? 200 : d.tier;
+  const base = d.chain === 'gull' ? d.tier - 3 : d.chain === 'special' || d.chain === 'brew' ? 200 : d.tier;
   return base + (p.smelly ? -2 : 0) + ((counts.get(p.id) ?? 0) > 1 ? 20 : 0) + (wanted.has(p.id) ? 100 : 0);
 }

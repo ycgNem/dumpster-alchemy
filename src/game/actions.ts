@@ -1,8 +1,12 @@
 // The player's hands: pick a piece up, drop it somewhere. The scene turns the pointer into a
 // Target with the layout; the bot builds Targets directly. Same rules either way.
 import { ITEMS, type ItemId } from '../data/items';
+import { TUNING } from '../data/tuning';
 import { makePiece, mergeResult } from './board';
+import { brew, brewKind, isTool, toolDropKind, useTool } from './alchemy';
+import { onMerged } from './combo';
 import { afterMerge, eggResult, useEgg } from './gulls';
+import { perkAfterCrush, perkAfterMerge, perkSkip } from './perks';
 import { deliver, wants } from './orders';
 import { earn } from './shift';
 import { grabbable, inFlight, noteItem, type GameState } from './state';
@@ -15,7 +19,8 @@ export type Target =
 
 /** What a drop would do. 'home' is the cell it came from (put it back, nothing happens). */
 /** 'egg': a Golden Egg cracked over junk (it rises two tiers). */
-export type DropKind = 'merge' | 'egg' | 'move' | 'swap' | 'deliver' | 'compact' | 'home' | 'bad';
+/** 'brew': two different things that make a recipe (src/game/alchemy.ts); 'tool': a brewed tool used on its target. */
+export type DropKind = 'merge' | 'egg' | 'brew' | 'tool' | 'move' | 'swap' | 'deliver' | 'compact' | 'home' | 'bad';
 
 export const NO_TARGET: Target = { kind: 'none' };
 
@@ -23,6 +28,8 @@ export const NO_TARGET: Target = { kind: 'none' };
 export function dropKind(s: GameState, c: number, r: number, t: Target): DropKind {
   const p = s.board.get(c, r);
   if (!p) return 'bad';
+  // Brewed tools have their own targets (alchemy.ts decides; 'home' and 'bad' still apply).
+  if (isTool(p.id)) return toolDropKind(s, c, r, t);
   switch (t.kind) {
     case 'none':
       return 'bad';
@@ -34,10 +41,11 @@ export function dropKind(s: GameState, c: number, r: number, t: Target): DropKin
       if (t.c === c && t.r === r) return 'home';
       if (!s.board.inside(t.c, t.r)) return 'bad';
       const q = s.board.get(t.c, t.r);
-      if (!q) return 'move';
+      if (!q) return s.board.isBlocked(t.c, t.r) ? 'bad' : 'move';
       if (inFlight(s, q.uid)) return 'bad';
       if (mergeResult(p.id, q.id)) return 'merge';
       if (p.id === 'golden_egg' && eggResult(q.id)) return 'egg';
+      if (brewKind(s, p.id, q.id)) return 'brew';
       return p.id === q.id ? 'bad' : 'swap';
     }
   }
@@ -80,30 +88,15 @@ export function drop(s: GameState, t: Target): DropKind {
       s.events.push({ type: 'swap', c: d.c, r: d.r, c2: t.c, r2: t.r });
       break;
     }
-    case 'merge': {
-      if (t.kind !== 'cell') break;
-      const q = s.board.get(t.c, t.r);
-      const to = q ? mergeResult(p.id, q.id) : null;
-      if (!q || !to) break;
-      // Bin Juice upgrades whatever it meets; otherwise both pieces are the same id.
-      const from = p.id === 'bin_juice' ? q.id : p.id;
-      // Full Moon: a merge may skip a tier (never past the top of its chain).
-      const skip = ITEMS[to].next;
-      const skipped = skip !== null && s.mods.skipChance > 0 && s.rng.chance(s.mods.skipChance);
-      const made: ItemId = skipped && skip ? skip : to;
-      s.board.set(d.c, d.r, null);
-      s.board.set(t.c, t.r, makePiece(made, s.time));
-      if (skipped) {
-        noteItem(s, to);
-        s.stats.skips++;
-      }
-      const first = noteItem(s, made);
-      const def = ITEMS[made];
-      s.stats.merges++;
-      s.events.push({ type: 'merge', from, to: made, chain: def.chain, tier: def.tier, c: t.c, r: t.r, first, skipped: skipped || undefined });
-      afterMerge(s, made, t.c, t.r);
+    case 'merge':
+      if (t.kind === 'cell') mergeInto(s, d.c, d.r, t.c, t.r);
       break;
-    }
+    case 'brew':
+      if (t.kind === 'cell') brew(s, d.c, d.r, t.c, t.r);
+      break;
+    case 'tool':
+      useTool(s, d.c, d.r, t);
+      break;
     case 'egg':
       if (t.kind === 'cell') useEgg(s, d.c, d.r, t.c, t.r);
       break;
@@ -116,9 +109,44 @@ export function drop(s: GameState, t: Target): DropKind {
       s.stats.compacted++;
       s.events.push({ type: 'compact', id: p.id });
       earn(s, crushPay(s, p.id));
+      perkAfterCrush(s, p.id);
       break;
   }
   return kind;
+}
+
+/**
+ * Merge the piece at (c, r) into the one at (tc, tr): both go, the result lands at (tc, tr).
+ * Every merge comes through here, the player's and each cascade link (src/game/combo.ts, which
+ * passes `cascade`: the link number, 2 and up), so stats, the Almanac, Full Moon skips, gull
+ * chances and the streak all see it. Returns what it made, or null if they don't merge.
+ */
+export function mergeInto(s: GameState, c: number, r: number, tc: number, tr: number, cascade?: number): ItemId | null {
+  const p = s.board.get(c, r);
+  const q = s.board.get(tc, tr);
+  const to = p && q ? mergeResult(p.id, q.id) : null;
+  if (!p || !q || !to) return null;
+  // Bin Juice upgrades whatever it meets; otherwise both pieces are the same id.
+  const from = p.id === 'bin_juice' ? q.id : p.id;
+  // Full Moon: a merge may skip a tier (never past the top of its chain).
+  const skip = ITEMS[to].next;
+  // (Or a Contraband skips it: Compost Heap, Golden Goose; src/game/perks.ts.)
+  const skipped = skip !== null && ((s.mods.skipChance > 0 && s.rng.chance(s.mods.skipChance)) || perkSkip(s, p, q, to));
+  const made: ItemId = skipped && skip ? skip : to;
+  s.board.set(c, r, null);
+  s.board.set(tc, tr, makePiece(made, s.time));
+  if (skipped) {
+    noteItem(s, to);
+    s.stats.skips++;
+  }
+  const first = noteItem(s, made);
+  const def = ITEMS[made];
+  s.stats.merges++;
+  s.events.push({ type: 'merge', from, to: made, chain: def.chain, tier: def.tier, c: tc, r: tr, first, skipped: skipped || undefined, cascade });
+  afterMerge(s, made, tc, tr);
+  perkAfterMerge(s, made, tc, tr);
+  onMerged(s, made, tc, tr, cascade ?? 1);
+  return made;
 }
 
 /**
@@ -129,7 +157,7 @@ export function crushPay(s: GameState, id: ItemId): number {
   const d = ITEMS[id];
   if (d.chain !== 'junk') return 0;
   const m = s.mods;
-  const perTier = m.compactorPayPerTier > 0 ? m.compactorPayPerTier : m.compactorPayMul > 1 ? 1 : 0;
+  const perTier = m.compactorPayPerTier > 0 ? m.compactorPayPerTier : m.compactorPayMul > 1 ? TUNING.value.scale : 0;
   return Math.round(d.tier * perTier * m.compactorPayMul);
 }
 

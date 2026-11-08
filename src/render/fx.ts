@@ -6,7 +6,7 @@
 import { ITEMS, type ItemId } from '../data/items';
 import { PAL, type PalName } from '../data/palette';
 import { TUNING } from '../data/tuning';
-import { H, W } from '../engine/screen';
+import { H, W, viewRect } from '../engine/screen';
 import type { GameEvent } from '../game/events';
 import { inFlight, type GameState } from '../game/state';
 import { isSmelly, ripeness, stinkLimit, stinkWarnAt } from '../game/stink';
@@ -24,6 +24,8 @@ import { truckBed, truckStop } from './props';
 import { trucks } from '../game/truck';
 import { crushPay } from '../game/actions';
 import { twistOf } from './twists';
+import { feverOn, lastPayMul } from '../game/combo';
+import { STREAK_PLATE } from './momentum';
 import { CROWN_SEC, END_SLAM_SEC, type View } from './view';
 
 const GULLS = TUNING.gulls;
@@ -49,6 +51,12 @@ const ON_BOARD: Rect = BOARD;
 // (From just under the truck timer plate, so a payout over the first card never sits on it.)
 const ORDERS_COL: Rect = { x: 0, y: 101, w: 174, h: 239 };
 const RIGHT_COL: Rect = { x: 466, y: 104, w: 174, h: 236 };
+/** Words about a result that pops up 2x above its cell (board.ts): the board and the lane over it. */
+const OVER_BOARD: Rect = { x: BOARD.x, y: 40, w: BOARD.w, h: BOARD.h + 72 };
+/** Under the streak meter in the sky. */
+const SKY_ROW: Rect = { x: 150, y: 36, w: 340, h: 20 };
+/** Night 1's tire: the cell it's falling toward (fx crashes it when it lands). */
+let fellCell: { c: number; r: number } | null = null;
 /** Just above the Stink jar: its words stay small and stay there (never across the column). */
 const OVER_JAR: Rect = { x: STINK.x - 14, y: STINK.y - 22, w: 54, h: 22 };
 
@@ -320,16 +328,22 @@ export function fxEvent(s: GameState, e: GameEvent): void {
       if (e.chain === 'gull') feathers(m.x, m.y, 3 + e.tier);
       else puffs(m.x, m.y + 4, Math.min(6, 2 + Math.floor(e.tier / 3)), 10 + e.tier);
       if (e.chain === 'junk' && e.tier >= 6) sparks(m.x, m.y, Math.floor(e.tier / 2), 50);
-      addShake(Math.min(3, 0.6 + e.tier * 0.22), 0.18 + e.tier * 0.012);
+      // Bigger junk, a bigger thump (the biggest hit the 6 px cap), and from tier 6 a hitstop.
+      addShake(Math.min(6, 0.6 + e.tier * 0.42), 0.2 + e.tier * 0.015);
+      if (e.chain === 'junk' && e.tier >= 6) freeze(Math.min(0.12, 0.06 + (e.tier - 6) * 0.012));
+      // Tier 4 and up is wet: a splash of whatever it's made of (the stain stays, board.ts).
+      if (e.chain === 'junk' && e.tier >= 4) debris(m.x, m.y + 10, 6 + e.tier, [itemColour(e.to), 'grime1', 'dirt0'], 60 + e.tier * 6, 0, 40);
       // The God gets its own word (gullGod, below), so it can rise clear of it; the King gets
-      // his crowning and the "ALL HAIL!" slam instead.
+      // his crowning and the "ALL HAIL!" slam instead. The result pops up 2x above its cell
+      // (board.ts `drawReveals`), so the word goes over the top of it. A cascade link says COMBO.
       const w = mergeWord(e.chain, e.tier);
+      const wy = m.y - 78;
       if (e.skipped) {
         // Full Moon: the merge jumped a tier.
         sparks(m.x, m.y, 14, 80);
         addShake(2, 0.3);
-        popup('+2 TIERS!', m.x, m.y - 14, { color: 'yellow', big: true, clamp: ON_BOARD, life: 1.4 });
-      } else if (e.to !== 'gullgod' && e.to !== 'king') popup(w.text, m.x, m.y - 12, { color: w.colour, big: w.big, clamp: ON_BOARD });
+        popup('+2 TIERS!', m.x, wy, { color: 'yellow', big: true, clamp: OVER_BOARD, life: 1.4 });
+      } else if (!e.cascade && e.to !== 'gullgod' && e.to !== 'king') popup(w.text, m.x, wy, { color: w.colour, big: w.big, clamp: OVER_BOARD });
       if (e.first) discovery(e.to);
       if (e.to === 'king') {
         sparks(m.x, m.y, 24, 110);
@@ -364,6 +378,11 @@ export function fxEvent(s: GameState, e: GameEvent): void {
       }
       break;
     case 'land': {
+      if (fellCell && fellCell.c === e.c && fellCell.r === e.r) {
+        fellCell = null;
+        fellCrash(s, e.c, e.r);
+        break;
+      }
       const from = landFrom.get(cellKey(e.c, e.r));
       landFrom.delete(cellKey(e.c, e.r));
       const f = cellFoot(e.c, e.r);
@@ -453,12 +472,21 @@ export function fxEvent(s: GameState, e: GameEvent): void {
           coins.push({ x0: x0 + rand(-6, 6), y0: y0 + rand(-6, 6), x1: SHINIES.x + 8, y1: SHINIES.y + 8, t: 0, dur: rand(0.5, 0.7), delay: i * 0.05 });
         }
         if (coins.length > 40) coins.splice(0, coins.length - 40);
-        // The payout pops above the card, clear of the raccoon's line (and right of the truck plate).
-        popup(`+${e.shinies}`, card.x + card.w - 16, card.y - (e.complete ? 12 : 6), { color: 'yellow', big: e.complete, clamp: ORDERS_COL });
+        // The payout pops above the card, clear of the raccoon's line (and right of the truck
+        // plate), with the streak's multiplier on it when there is one.
+        const mul = lastPayMul(s);
+        const text = mul > 1 ? `+${e.shinies} x${mul}` : `+${e.shinies}`;
+        popup(text, card.x + card.w - 16, card.y - (e.complete ? 12 : 6), { color: mul >= 3 ? 'pink' : 'yellow', big: e.complete, clamp: ORDERS_COL });
       } else if (e.gift) {
         popup('GIFT!', x0, card.y - 12, { color: 'toxic3', big: true, clamp: ORDERS_COL });
       }
       if (e.complete) sparks(x0, y0, e.jackpot ? 24 : 8, e.jackpot ? 90 : 60);
+      // A jackpot or a treasure: Shinies spray right across the screen.
+      const treasure = (ITEMS[e.id].chain as string) === 'brew';
+      if ((e.complete && e.jackpot) || treasure) {
+        coinBurst(x0, y0, e.jackpot ? 40 : 28);
+        addShake(4, 0.45);
+      }
       if (e.complete && e.jackpot) {
         addShake(2.5, 0.4);
         popup('JACKPOT!', card.x + card.w - 50, card.y - 26, { color: 'yellow', big: true, clamp: ORDERS_COL, delay: 0.25, life: 1.5, rise: 4 });
@@ -581,9 +609,132 @@ export function fxEvent(s: GameState, e: GameEvent): void {
       if (s.endReason === 'king') crown = { ...(crownCell ?? { x: BOARD.x + BOARD.w / 2, y: BOARD.y + BOARD.h / 2 }), t: 0 };
       endSlam(s);
       break;
+    case 'cascade': {
+      // COMBO x2, x3...: louder and brighter every link, a hitstop from the third.
+      const m = mid(e.c, e.r);
+      const n = e.links;
+      pop(m.x, m.y);
+      sparks(m.x, m.y, 6 + n * 3, 60 + n * 10);
+      puffs(m.x, m.y + 4, 3, 14);
+      addShake(Math.min(6, 1.5 + n * 0.9), 0.25 + n * 0.04);
+      if (n >= 3) freeze(Math.min(0.12, 0.06 + (n - 3) * 0.02));
+      const colour: PalName = n >= 5 ? 'pink' : n === 4 ? 'toxic3' : n === 3 ? 'yellow' : 'sodium3';
+      popup(`COMBO x${n}!`, m.x, m.y - 78, { color: colour, big: n >= 3, clamp: OVER_BOARD, life: 1.1 });
+      break;
+    }
+    case 'streak':
+      if (e.step > 0) {
+        const P = STREAK_PLATE;
+        popup(`x${e.mul}!`, P.x + P.w - 14, P.y + P.h + 8, { color: e.step >= 3 ? 'toxic3' : 'yellow', rise: 6, life: 0.8, clamp: SKY_ROW });
+        sparks(P.x + P.w - 14, P.y + 8, 4 + e.step * 2, 40);
+      }
+      break;
+    case 'feverStart':
+      if (s.status === 'playing') {
+        startSlam({ text: 'RACCOON RAVE!', sub: `Pay x${e.mul}  ·  free Dumpster  ·  ${e.sec} seconds`, colour: 'pink', band: 'blue', life: 1.3, mid: true, y: 74 });
+        const vr = viewRect();
+        for (let i = 0; i < 70; i++) {
+          emit({ colour: pick(CONFETTI), size: 2, x: rand(vr.x, vr.x + vr.w), y: vr.y - rand(4, 60), vx: rand(-30, 30), vy: rand(40, 90), grav: 30, drag: 0.5, sway: rand(1, 3), life: rand(1.6, 2.6), byLife: false });
+        }
+        addShake(4, 0.5);
+      }
+      break;
+    case 'feverEnd': {
+      const P = STREAK_PLATE;
+      popup("rave's over", P.x + P.w / 2, P.y + P.h + 10, { color: 'bone', rise: 4, life: 1.2, clamp: SKY_ROW });
+      break;
+    }
+    case 'fellOff': {
+      // The truck hits a pothole: something big bounces off the back.
+      fellCell = { c: e.c, r: e.r };
+      const st = truckStop(0);
+      const bed = truckBed(0);
+      debris(bed.x, bed.y, 12, ['dirt3', 'ink1', 'fur3'], 70, 0, 40);
+      dust(st.x - 30, st.y - 3, 10, 20);
+      addShake(3, 0.3);
+      popup('UH OH', bed.x, bed.y - 14, { color: 'yellow', big: true, rise: 6, life: 1.1, clamp: TRUCK_LANE });
+      break;
+    }
+    case 'brew':
+      // A recipe (render/alchemy.ts does the bubbles and words): a hitstop and a thump.
+      freeze(e.first ? 0.06 : 0.12);
+      addShake(e.first ? 4 : 3, 0.4);
+      break;
+    case 'toolUsed':
+      toolFx(e);
+      break;
     default:
       break;
   }
+}
+
+/** Night 1's tire lands: a crater, a big crash, a hitstop, and the slam. */
+function fellCrash(s: GameState, c: number, r: number): void {
+  const f = cellFoot(c, r);
+  freeze(0.12);
+  addShake(6, 0.6);
+  dust(f.x, f.y - 1, 14, 18);
+  debris(f.x, f.y - 6, 22, ['dirt3', 'dirt2', 'ink1', 'fur3'], 110, 0, 80);
+  sparks(f.x, f.y - 16, 10, 70);
+  popup('THUD', f.x, f.y - 90, { color: 'bone', big: true, clamp: OVER_BOARD, life: 0.9 });
+  if (s.status === 'playing') startSlam({ text: 'SOMETHING FELL OFF THE TRUCK!', sub: 'A whole Bald Tire. Finders keepers.', colour: 'yellow', band: 'sodium1', life: 1.6, mid: true, y: 46 });
+}
+
+/**
+ * The brewed tools going off: the weight of it (render/alchemy.ts draws the bursts and words,
+ * board.ts the stains, audio the sounds).
+ */
+function toolFx(e: Extract<GameEvent, { type: 'toolUsed' }>): void {
+  switch (e.id as string) {
+    case 'bagbomb': {
+      const m = mid(e.c, e.r);
+      freeze(0.1);
+      addShake(6, 0.55);
+      puffs(m.x, m.y, 8, 30);
+      break;
+    }
+    case 'tirefire':
+      freeze(0.06);
+      addShake(4, 0.5);
+      break;
+    case 'elecsoup':
+    case 'magnet':
+      addShake(3, 0.35);
+      break;
+    default:
+      addShake(1.5, 0.25);
+      break;
+  }
+}
+
+/** Shinies spraying across the screen from (x, y), falling off the bottom. */
+function coinBurst(x: number, y: number, n: number): void {
+  for (let i = 0; i < n; i++) {
+    emit({ name: 'icon_shiny', colour: 'yellow', size: 4, x: x + rand(-6, 6), y: y + rand(-6, 6), vx: rand(-280, 320), vy: rand(-340, -140), grav: 560, drag: 0.3, life: rand(1.2, 1.9), byLife: false, delay: i * 0.012 });
+  }
+  sparks(x, y, 16, 120);
+}
+
+// ------------------------------------------------------------------------------ hitstop
+
+/** Seconds of hitstop still owed, and whether this frame was frozen (the particles crawl). */
+let stopLeft = 0;
+let frozeThisFrame = false;
+
+/** Freeze the lot for `sec` (a big merge, a third cascade link, a brew). Render-side only. */
+function freeze(sec: number): void {
+  stopLeft = Math.max(stopLeft, sec);
+}
+
+/**
+ * The play scene asks once a frame: true means skip the game step this frame (a hitstop). The
+ * headless sim never calls this, so it never stops.
+ */
+export function hitstop(dt: number): boolean {
+  if (stopLeft <= 0) return false;
+  stopLeft -= dt;
+  frozeThisFrame = true;
+  return true;
 }
 
 function dropBanners(f: (b: Banner, i: number) => boolean): void {
@@ -617,22 +768,30 @@ export function updateFx(dt: number, s?: GameState, v?: View): void {
     }
   }
 
+  // During a hitstop the particles crawl (a quarter speed) instead of stopping dead.
+  const pdt = frozeThisFrame ? dt * 0.25 : dt;
+  frozeThisFrame = false;
   for (const p of pool) {
     if (!p.alive) continue;
     if (p.delay > 0) {
-      p.delay -= dt;
+      p.delay -= pdt;
       continue;
     }
-    p.age += dt;
+    p.age += pdt;
     if (p.age >= p.life) {
       p.alive = false;
       continue;
     }
-    const k = Math.max(0, 1 - p.drag * dt);
+    const k = Math.max(0, 1 - p.drag * pdt);
     p.vx *= k;
-    p.vy = p.vy * k + p.grav * dt;
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
+    p.vy = p.vy * k + p.grav * pdt;
+    p.x += p.vx * pdt;
+    p.y += p.vy * pdt;
+  }
+  // The Raccoon Rave: confetti keeps drifting down.
+  if (s && s.status === 'playing' && feverOn(s) && Math.random() < dt * 14) {
+    const vr = viewRect();
+    emit({ colour: pick(CONFETTI), size: 2, x: rand(vr.x, vr.x + vr.w), y: vr.y - 4, vx: rand(-20, 20), vy: rand(30, 70), grav: 30, drag: 0.6, sway: rand(1, 3), life: rand(1.6, 2.4), byLife: false });
   }
 
   for (let i = coins.length - 1; i >= 0; i--) {
@@ -676,7 +835,8 @@ export function updateFx(dt: number, s?: GameState, v?: View): void {
     crown.t += dt;
     // Confetti while the King goes up.
     if (crown.t < CROWN_SEC + 1 && Math.random() < dt * 30) {
-      emit({ colour: pick(CONFETTI), size: 2, x: rand(0, W), y: -4, vx: rand(-20, 20), vy: rand(30, 70), grav: 30, drag: 0.6, sway: rand(1, 3), life: rand(1.6, 2.4), byLife: false });
+      const vr = viewRect();
+      emit({ colour: pick(CONFETTI), size: 2, x: rand(vr.x, vr.x + vr.w), y: vr.y - 4, vx: rand(-20, 20), vy: rand(30, 70), grav: 30, drag: 0.6, sway: rand(1, 3), life: rand(1.6, 2.4), byLife: false });
     }
   }
   if (s && v) ambient(s, v, dt);
@@ -867,18 +1027,30 @@ export function drawStinkEdge(g: CanvasRenderingContext2D, s: GameState, v: View
   const k = (s.stink - (warn - 5)) / (stinkLimit(s) - (warn - 5));
   // It breathes a step in and out as well as growing.
   const level = Math.max(1, Math.min(LEVELS, Math.round(k * (LEVELS - 1)) + 1 + (Math.sin(v.t * 2.3) > 0.6 ? 1 : 0)));
-  const img = vignette(level);
-  if (img) g.drawImage(img, 0, 0);
+  // It covers the whole buffer (margins too), plus a pad so a shake never shows its edge.
+  const vr = viewRect();
+  const img = vignette(level, vr.w, vr.h);
+  if (img) g.drawImage(img, vr.x - VIG_PAD, vr.y - VIG_PAD);
 }
 
 const LEVELS = 7;
+/** Extra vignette past each edge of the buffer: more than the biggest shake. */
+const VIG_PAD = 8;
 const vignettes = new Map<number, HTMLCanvasElement | null>();
+/** The buffer size the cached vignettes were built for (they're rebuilt when it changes). */
+let vigSize = '';
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
-function vignette(level: number): HTMLCanvasElement | null {
+function vignette(level: number, vw: number, vh: number): HTMLCanvasElement | null {
+  if (vigSize !== `${vw}x${vh}`) {
+    vignettes.clear();
+    vigSize = `${vw}x${vh}`;
+  }
   const hit = vignettes.get(level);
   if (hit !== undefined) return hit;
   const c = document.createElement('canvas');
+  const W = vw + VIG_PAD * 2;
+  const H = vh + VIG_PAD * 2;
   c.width = W;
   c.height = H;
   const g = c.getContext('2d');
@@ -888,6 +1060,10 @@ function vignette(level: number): HTMLCanvasElement | null {
   }
   const img = g.createImageData(W, H);
   const band = 8 + level * 7;
+  // With margins round the stage, the band grows with the Stink to cross them too, so at the
+  // top it reaches as far onto the stage as it does on a bare 640 x 360.
+  const bandX = band + Math.max(0, (vw - 640) / 2) * (level / LEVELS);
+  const bandY = band + Math.max(0, (vh - 360) / 2) * 2.2 * (level / LEVELS);
   const hex = (n: PalName): [number, number, number] => {
     const v = parseInt(PAL[n].slice(1), 16);
     return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
@@ -897,12 +1073,15 @@ function vignette(level: number): HTMLCanvasElement | null {
   const speck = hex('toxic1');
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
-      const dx = Math.min(x, W - 1 - x) + 1;
+      // (Distances from the buffer's edges; the pad past them is as deep as the edge.)
+      const dx = Math.max(0, Math.min(x - VIG_PAD, vw - 1 - (x - VIG_PAD))) + 1;
       // Thinner along the top and bottom, where the HUD text lives.
-      const dy = Math.min(y, H - 1 - y) * 2.2 + 1;
+      const dy = Math.max(0, Math.min(y - VIG_PAD, vh - 1 - (y - VIG_PAD))) * 2.2 + 1;
       // A harmonic mean of the two edge distances: thin along the edges, deep in the corners.
-      const d = (2 * dx * dy) / (dx + dy);
-      const dens = (1 - d / band) * 0.9;
+      const nx = dx / bandX;
+      const ny = dy / bandY;
+      const d = (2 * nx * ny) / (nx + ny);
+      const dens = (1 - d) * 0.9;
       if (dens <= 0) continue;
       const th = ((BAYER[(y % 4) * 4 + (x % 4)] ?? 0) + 0.5) / 16;
       if (dens <= th) continue;
@@ -940,7 +1119,8 @@ function drawCrown(g: CanvasRenderingContext2D, c: { x: number; y: number; t: nu
   const a = g.globalAlpha;
   g.globalAlpha = Math.min(0.62, t * 2);
   g.fillStyle = PAL.ink0;
-  g.fillRect(0, 0, W, H);
+  const vr = viewRect();
+  g.fillRect(vr.x, vr.y, vr.w, vr.h);
   g.globalAlpha = a;
 
   // The King rises from his cell to the middle of the beam.
@@ -956,8 +1136,9 @@ function drawCrown(g: CanvasRenderingContext2D, c: { x: number; y: number; t: nu
     const jig = Math.floor(t * 30) % 2;
     const x = Math.round(W / 2 - bw / 2) + jig;
     const h = 204;
+    // (From the top of the buffer: in a tall window the beam comes down through the margin.)
     const layer = (inset: number, col: PalName): void => {
-      if (bw - inset * 2 > 0) fillRect(g, { x: x + inset, y: 0, w: bw - inset * 2, h }, col);
+      if (bw - inset * 2 > 0) fillRect(g, { x: x + inset, y: vr.y, w: bw - inset * 2, h: h - vr.y }, col);
     };
     layer(0, 'sodium1');
     layer(5, 'sodium2');
@@ -1058,10 +1239,12 @@ function drawSlam(g: CanvasRenderingContext2D, sl: Slam): void {
   const h = img.height * scale;
   const sub = sl.sub && t >= land ? textCanvas(sl.sub, 'bone') : null;
   if (t >= land) {
-    const band = { x: 0, y: Math.round(cy - h / 2 - 8), w: W, h: h + 16 + (sub ? 10 : 0) };
+    // The band runs the whole width of the buffer, margins too.
+    const vr = viewRect();
+    const band = { x: vr.x, y: Math.round(cy - h / 2 - 8), w: vr.w, h: h + 16 + (sub ? 10 : 0) };
     fillRect(g, band, 'ink0');
-    fillRect(g, { x: 0, y: band.y + 2, w: W, h: 2 }, sl.band);
-    fillRect(g, { x: 0, y: band.y + band.h - 4, w: W, h: 2 }, sl.band);
+    fillRect(g, { x: vr.x, y: band.y + 2, w: vr.w, h: 2 }, sl.band);
+    fillRect(g, { x: vr.x, y: band.y + band.h - 4, w: vr.w, h: 2 }, sl.band);
     if (sub) g.drawImage(sub, Math.round(W / 2 - sub.width / 2), Math.round(cy + h / 2 - 2));
   }
   g.drawImage(img, 0, 0, img.width, img.height, Math.round(W / 2 - w / 2), Math.round(cy - h / 2), w, h);
@@ -1084,6 +1267,9 @@ export function resetFx(): void {
   slamLanded = false;
   crown = null;
   crownCell = null;
+  fellCell = null;
+  stopLeft = 0;
+  frozeThisFrame = false;
   resetPopups();
   resetShake();
 }

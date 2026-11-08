@@ -4,7 +4,9 @@ import { isMuted, playUi, setMuted } from '../audio';
 import { H, W } from '../engine/screen';
 import { touchUi, type Input } from '../engine/input';
 import { setCursorHint } from '../render/cursor';
+import { drawFullscreenButton } from '../render/fullscreen';
 import { inRect, type Rect } from '../render/layout';
+import { reduceShake, setReduceShake } from '../render/shake';
 import { Buttons, bigText, buttonColumn, dim, drawButton, drawIcon, drawPaper, menuPointing, type Btn } from '../render/menus';
 import { drawText } from '../render/text';
 
@@ -13,7 +15,7 @@ export const PAUSE_BTN: Rect = { x: 4, y: 3, w: 18, h: 18 };
 /** The sound button, top-right of the HUD (the clock sits just left of it). */
 export const MUTE_BTN: Rect = { x: W - 22, y: 3, w: 18, h: 18 };
 
-const PANEL: Rect = { x: W / 2 - 100, y: H / 2 - 76, w: 200, h: 152 };
+const PANEL: Rect = { x: W / 2 - 100, y: H / 2 - 90, w: 200, h: 180 };
 
 export type PauseAction = 'resume' | 'quit' | null;
 
@@ -37,6 +39,8 @@ export class PauseMenu {
       [
         ['resume', 'Resume', { icon: 'icon_play', keys: ['Enter'] }],
         ['sound', isMuted() ? 'Sound: OFF' : 'Sound: ON', { icon: isMuted() ? 'icon_mute' : 'icon_sound' }],
+        // Reduce shake (src/render/shake.ts): the big moments shake a third as hard, 2 px at most.
+        ['shake', reduceShake() ? 'Shake: LOW' : 'Shake: FULL', { tip: 'Big moments shake the screen. LOW keeps it to a nudge.' }],
         ['quit', sure ? 'Sure? Quit' : 'Quit to Title', { keys: ['KeyQ'], sound: 'back', tip: sure ? undefined : "Tonight's Shinies are lost. The night stays." }],
       ],
       W / 2,
@@ -52,6 +56,7 @@ export class PauseMenu {
     const id = this.t > 0.1 ? this.ui.update(input, this.buttons()) : null;
     if (id === 'resume') return 'resume';
     if (id === 'sound') setMuted(!isMuted());
+    if (id === 'shake') setReduceShake(!reduceShake());
     if (id === 'quit') {
       if (this.t - this.armed < 3) return 'quit';
       this.armed = this.t;
@@ -62,6 +67,7 @@ export class PauseMenu {
   draw(g: CanvasRenderingContext2D, input: Input): void {
     dim(g, 0.6);
     drawPaper(g, PANEL);
+    drawFullscreenButton(g, input, { x: PANEL.x + PANEL.w - 24, y: PANEL.y + 6, w: 18, h: 18 });
     bigText(g, 'PAUSED', W / 2, PANEL.y + (this.auto ? 6 : 12), 2, { color: 'ink0', align: 'center' });
     if (this.auto) drawText(g, 'You looked away. The lot waited.', W / 2, PANEL.y + 31, { color: 'rust1', align: 'center' });
     this.ui.draw(g, input, this.buttons());

@@ -11,6 +11,10 @@
 //   0.62+ a nervous tremolo organ
 //   0.86+ panic: an arpeggio an octave up and crashes
 // and the tempo climbs from 96 to 112 BPM over the top half.
+//
+// The Raccoon Rave (src/game/combo.ts Fever) kicks the night into double-time: the tempo jumps by
+// a third (to ~128-150 BPM) and a rave layer comes in on top: four on the floor, offbeat open hats,
+// claps, saw stabs on the chord and a snare roll into every other bar.
 import { type Out, biquad, gainNode, lfo, mtof, noise, noiseBuffer, rand, rr, smoothstep, tone } from './synth';
 
 export type TrackId = 'title' | 'night' | 'report';
@@ -51,7 +55,12 @@ interface Step {
   chord: Chord;
   next: Chord;
   x: number;
+  /** The Raccoon Rave is on (songs with a rave layer play it). */
+  fever: boolean;
 }
+
+/** The Rave's tempo jump (the drums go double-time on top of it). */
+const FEVER_TEMPO = 1.33;
 
 interface Song {
   bpm(x: number): number;
@@ -66,6 +75,8 @@ interface Song {
   gain: number;
   /** Plays one step; L[i] is layer i at the step's time, on[i] whether that layer is audible. */
   play(L: readonly Out[], st: Step, on: readonly boolean[]): void;
+  /** Has a Raccoon Rave layer (the night): it's the extra Out after the song's own layers. */
+  rave?: boolean;
 }
 
 // ------------------------------------------------------------------------------ instruments
@@ -90,6 +101,33 @@ function shaker(o: Out, v: number): void {
 
 function crash(o: Out, v: number): void {
   noise(o, { ft: 'highpass', f: 3500, q: 0.5, a: 0.002, d: 1.3, v: 0.12 * v });
+}
+
+/** A cheap drum-machine clap: three quick noise slaps and a tail. */
+function clap(o: Out, v: number): void {
+  for (let i = 0; i < 3; i++) noise(o, { dt: i * 0.011, f: 1300, q: 1.1, a: 0.001, d: 0.012, v: 0.3 * v });
+  noise(o, { dt: 0.033, f: 1200, q: 0.9, a: 0.001, d: 0.12, v: 0.25 * v });
+}
+
+/** A rave stab: detuned saws through a filter that snaps shut. */
+function stab(o: Out, ms: readonly number[], v: number): void {
+  const lp = biquad(o.ctx, 'lowpass', 3200, 4);
+  lp.frequency.setValueAtTime(3200, o.t);
+  lp.frequency.exponentialRampToValueAtTime(500, o.t + 0.12);
+  lp.connect(o.dest);
+  for (const m of ms) {
+    for (const det of [-14, 12]) tone(o, { type: 'sawtooth', f: mtof(m), detune: det, a: 0.003, d: 0.13, v: 0.05 * v, dest: lp });
+  }
+}
+
+/** The Raccoon Rave on top of the night: four on the floor, offbeat hats, claps, stabs, a roll. */
+function raveLayer(o: Out, { s, bar, chord }: Step): void {
+  if (s % 4 === 0) kick(o, 1);
+  if (s % 4 === 2) hat(o, 0.6, true);
+  else hat(o, 0.22);
+  if (s === 4 || s === 12) clap(o, 0.9);
+  if (s === 0 || s === 3 || s === 6 || s === 10) stab(o, chord.notes.map((n) => n + 12), s === 0 ? 1 : 0.7);
+  if (bar % 2 === 1 && s >= 12) snare(o, 0.25 + (s - 12) * 0.12);
 }
 
 /** Round bass: a triangle through a closing filter, plus a sine for weight. */
@@ -254,8 +292,12 @@ const NIGHT: Song = {
   ],
   crackle: 0.06,
   gain: 0.6,
-  play(L, { sd, s, bar, chord, next, x }, on) {
-    const [base, hats, bassL, beat, org, panic] = L;
+  rave: true,
+  play(L, st, on) {
+    const { sd, s, bar, chord, next, x } = st;
+    const [base, hats, bassL, beat, org, panic, rave] = L;
+    // The Raccoon Rave: the party layer on top of everything else.
+    if (st.fever && rave) raveLayer(rave, st);
     const third = chord.minor ? 3 : 4;
     // 0: the sneak
     if (s === 0) {
@@ -338,6 +380,9 @@ export class Track {
   stopAt = Infinity;
   private readonly song: Song;
   private readonly layerGains: GainNode[];
+  /** The Raccoon Rave layer (silent unless the song has one and the Rave is on). */
+  private readonly raveGain: GainNode;
+  private fever = false;
   private readonly lastOn: number[];
   private readonly crackle: AudioBufferSourceNode | null = null;
   private step = 0;
@@ -369,6 +414,8 @@ export class Track {
       return g;
     });
     this.lastOn = targets.map((v) => (v > 0.01 ? start : -Infinity));
+    this.raveGain = gainNode(ctx, 0);
+    this.raveGain.connect(this.out);
     if (this.song.crackle > 0) {
       const src = ctx.createBufferSource();
       src.buffer = noiseBuffer(ctx, 'crackle');
@@ -386,6 +433,13 @@ export class Track {
     });
   }
 
+  /** The Raccoon Rave on or off: the rave layer swells in (or cuts) and the tempo jumps. */
+  setFever(on: boolean, now: number): void {
+    if (on === this.fever) return;
+    this.fever = on && this.song.rave === true;
+    this.raveGain.gain.setTargetAtTime(this.fever ? 1 : 0, now, this.fever ? 0.03 : 0.15);
+  }
+
   setIntensity(x: number, now: number): void {
     if (Math.abs(x - this.x) < 0.004) return;
     this.x = x;
@@ -396,14 +450,14 @@ export class Track {
   schedule(until: number, silent: boolean): void {
     const song = this.song;
     while (this.next < until) {
-      const sd = 60 / song.bpm(this.x) / 4;
+      const sd = 60 / (song.bpm(this.x) * (this.fever ? FEVER_TEMPO : 1)) / 4;
       const t = Math.max(0, this.next + (this.step % 2 === 1 ? song.swing * sd : 0) + (rand() - 0.5) * 0.008);
       if (!silent) {
         const on = song.layers(this.x).map((v, i) => {
           if (v > 0.01) this.lastOn[i] = t;
           return t - this.lastOn[i] < 2.5;
         });
-        const L = this.layerGains.map((g) => ({ ctx: this.ctx, dest: g, t }));
+        const L = [...this.layerGains, this.raveGain].map((g) => ({ ctx: this.ctx, dest: g, t }));
         const step: Step = {
           sd,
           s: this.step,
@@ -411,6 +465,7 @@ export class Track {
           chord: CHORDS[song.bars[this.bar]],
           next: CHORDS[song.bars[(this.bar + 1) % song.bars.length]],
           x: this.x,
+          fever: this.fever,
         };
         song.play(L, step, on);
       }
@@ -451,6 +506,7 @@ export class MusicPlayer {
   private tracks: Track[] = [];
   private current: TrackId | null = null;
   private x = 0;
+  private fever = false;
   private timer: number | undefined;
 
   constructor(
@@ -463,9 +519,20 @@ export class MusicPlayer {
     this.current = id;
     const now = this.ctx.currentTime;
     for (const tr of this.tracks) if (tr.stopAt === Infinity) tr.fadeOut(now, 1.6);
-    if (id) this.tracks.push(new Track(this.ctx, this.dest, id, now + 0.06, this.x, 1.2));
+    if (id) {
+      const tr = new Track(this.ctx, this.dest, id, now + 0.06, this.x, 1.2);
+      tr.setFever(this.fever, now);
+      this.tracks.push(tr);
+    }
     if (this.timer === undefined) this.timer = window.setInterval(this.tick, 25);
     this.tick();
+  }
+
+  /** The Raccoon Rave (src/game/combo.ts): double-time and the rave layer on the night song. */
+  setFever(on: boolean): void {
+    this.fever = on;
+    const now = this.ctx.currentTime;
+    for (const tr of this.tracks) if (tr.stopAt === Infinity) tr.setFever(on, now);
   }
 
   setIntensity(x: number): void {
@@ -495,8 +562,9 @@ export class MusicPlayer {
 }
 
 /** Renders `seconds` of a song into `dest` in one go (for the lab's offline measurements). */
-export function renderSong(ctx: BaseAudioContext, dest: AudioNode, id: TrackId, x: number, seconds: number, solo?: number): void {
+export function renderSong(ctx: BaseAudioContext, dest: AudioNode, id: TrackId, x: number, seconds: number, solo?: number, fever = false): void {
   const tr = new Track(ctx, dest, id, 0.05, x, 0);
   if (solo !== undefined) tr.solo(solo);
+  if (fever) tr.setFever(true, 0);
   tr.schedule(seconds, false);
 }

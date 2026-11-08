@@ -21,7 +21,8 @@ export type GameEvent =
   | { type: 'swap'; c: number; r: number; c2: number; r2: number }
   | { type: 'invalid'; c: number; r: number }
   // `skipped`: a Full Moon merge that jumped a tier (`to` is two up from `from`).
-  | { type: 'merge'; from: ItemId; to: ItemId; chain: Chain; tier: number; c: number; r: number; first: boolean; skipped?: boolean }
+  // `cascade`: this merge was a cascade link (2 for the first one; src/game/combo.ts).
+  | { type: 'merge'; from: ItemId; to: ItemId; chain: Chain; tier: number; c: number; r: number; first: boolean; skipped?: boolean; cascade?: number }
   | { type: 'compact'; id: ItemId }
   // Raccoons
   // `jackpot`: the night's big order. `gift`: on the King night a filled order pays in junk
@@ -51,6 +52,41 @@ export type GameEvent =
   | { type: 'milestone'; hour: number; bonus: number }
   | { type: 'nightWon' }
   | { type: 'nightLost' }
+  // Momentum (src/game/combo.ts). `cascade`: a merge result sat next to its twin and they merged
+  // again on their own, the piece at (fc, fr) into (c, r), making `id`; `links` counts the chain
+  // so far (the player's merge is 1, so the first cascade is 2). `streak`: the Stench Streak
+  // stepped up (or, `step` 0, cooled off) to pay x`mul`. `feverStart`/`feverEnd`: the Raccoon
+  // Rave. `fellOff`: night 1's Bald Tire bounces off the truck toward (c, r).
+  | { type: 'cascade'; links: number; id: ItemId; c: number; r: number; fc: number; fr: number }
+  | { type: 'streak'; step: number; mul: number }
+  | { type: 'feverStart'; mul: number; sec: number }
+  | { type: 'feverEnd' }
+  | { type: 'fellOff'; id: ItemId; c: number; r: number }
+  // Alchemy (src/game/alchemy.ts). `brew`: `a` (the held piece, from fc, fr) was dropped on `b`
+  // at (c, r) and they brewed `to`, a tool or a treasure; `first`: never brewed before (the big
+  // reveal); `twin`: the Alchemist's Apron's second copy landed there. `toolUsed`: the tool `id`
+  // was used on (c, r) (or on order `slot`, the Stew). `cells`: every cell it hit. `made`: pieces
+  // it changed or created (Soup, Chum, Magnet, Leftovers); `moves`: pieces it pulled (Magnet);
+  // `shinies`: what it paid out (Bomb, Fire, Fork); `stink`: Stink added (Fire) or taken (Blanket).
+  | { type: 'brew'; a: ItemId; b: ItemId; to: ItemId; kind: 'tool' | 'treasure'; c: number; r: number; fc: number; fr: number; first: boolean; twin?: { c: number; r: number } }
+  | {
+      type: 'toolUsed';
+      id: ItemId;
+      c: number;
+      r: number;
+      slot?: number;
+      cells: { c: number; r: number; id: ItemId }[];
+      made?: { c: number; r: number; from: ItemId; to: ItemId; first: boolean }[];
+      moves?: GullMove[];
+      shinies?: number;
+      stink?: number;
+    }
+  // The run (src/game/perks.ts). `perk`: a Contraband did something (`text` is its popup; at a cell,
+  // or an order slot, or nowhere in particular; `item`: what it made). `boss`: The Inspection
+  // condemned a cell; the Gull God stole `id` from (c, r) ('raid'), flew on fed ('pass'), or a gull
+  // handed in or crushed just fed it ('fed').
+  | { type: 'perk'; id: string; text: string; c?: number; r?: number; slot?: number; item?: ItemId }
+  | { type: 'boss'; what: 'condemn' | 'raid' | 'pass' | 'fed'; c?: number; r?: number; id?: ItemId }
   // Menus
   | { type: 'uiClick' }
   | { type: 'buy'; upgrade: string };

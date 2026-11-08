@@ -39,7 +39,10 @@ export interface FontAtlas {
   version: number;
 }
 
-export const FAMILIES = ['items', 'cast', 'props', 'backdrop', 'logo', 'board', 'ui', 'fx'] as const;
+export const FAMILIES = [
+  'items', 'cast', 'props', 'backdrop', 'logo', 'board', 'ui', 'fx',
+  'recipes', 'contraband', 'map', // v2 (art agent): recipe results, Contraband stickers, the county map
+] as const;
 export type Family = (typeof FAMILIES)[number];
 
 const byFamily = new Map<Family, Map<string, SpriteDef>>();

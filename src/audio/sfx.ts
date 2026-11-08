@@ -23,6 +23,10 @@ import {
   tone,
 } from './synth';
 import { chitter, choir, crowdUgh, flap, gullCall, kazoo, trombone } from './voices';
+// Cascades, the streak, the Rave, the tire, brews and tools (anything else new: no sound).
+import { momentumSound } from './momentum';
+// The run's Contraband and boss events (src/audio/run.ts).
+import { runEventSound } from './run';
 
 export interface Sound {
   /** Groups sounds for the level table and the rate limiter. */
@@ -51,6 +55,14 @@ const LEVEL: Record<string, number> = {
   'dumpster.stuck': 1.3,
   truckDump: 0.8,
   gullPeck: 1.3,
+  // Momentum (momentum.ts): the Rave's air horn is a big moment, but not three merges loud.
+  feverStart: 0.6,
+  // The run (run.ts): the long kazoo and trombone tunes measure loud; the pin and the perk pip soft.
+  'run.fired': 0.55,
+  'run.runWon': 0.6,
+  'run.spring': 0.7,
+  'run.fork': 1.6,
+  perk: 1.7,
 };
 
 export function levelOf(key: string): number {
@@ -102,7 +114,8 @@ type Material =
   | 'gold'
   | 'slosh';
 
-const MATERIAL: Record<ItemId, Material> = {
+/** What each item is made of (anything new, like brewed recipes, falls back to `MATERIAL_OF`). */
+const MATERIAL: Partial<Record<ItemId, Material>> = {
   cap: 'tink',
   can: 'tin',
   takeout: 'paper',
@@ -144,9 +157,17 @@ function thud(o: Out, k: number, w: number): number {
   });
 }
 
+/** What an item sounds like: its own material, or one guessed from its chain. */
+function materialOf(id: ItemId): Material {
+  const m = MATERIAL[id];
+  if (m) return m;
+  const chain = ITEMS[id]?.chain as string | undefined;
+  return chain === 'gull' ? 'feather' : chain === 'junk' ? 'clank' : 'slosh';
+}
+
 /** An item hitting the ground: a thud plus what it's made of. `w` scales how hard it lands. */
 function impact(o: Out, id: ItemId, w: number): number {
-  return Math.max(thud(o, weightOf(id), w), material(o, MATERIAL[id], w));
+  return Math.max(thud(o, weightOf(id), w), material(o, materialOf(id), w));
 }
 
 function material(o: Out, m: Material, w: number): number {
@@ -936,6 +957,9 @@ export function eventSound(e: GameEvent): Sound | null {
           return end;
         },
       };
+
+    default:
+      return momentumSound(e) ?? runEventSound(e);
   }
 }
 

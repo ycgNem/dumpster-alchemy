@@ -3,6 +3,9 @@
 // Also: whether to talk touch ("tap", no key hints), and whether the window just lost focus.
 import type { Screen } from './screen';
 
+/** The pointer's x and y before any pointer has been seen: far off the screen (and below 0). */
+export const NO_POINTER = -99999;
+
 /** The last pointer's type, or null before any pointer has been seen. */
 let lastPointer: string | null = null;
 
@@ -24,11 +27,15 @@ export function tapWord(): string {
 export class Input {
   /** Set when the window loses focus or the tab is hidden; the play scene pauses and clears it. */
   focusLost = false;
-  x = -1;
-  y = -1;
+  /**
+   * The pointer in stage coordinates (src/engine/screen.ts): negative or past 640 x 360 in the
+   * margins. NO_POINTER until a pointer has been seen.
+   */
+  x = NO_POINTER;
+  y = NO_POINTER;
   /** Where the last press started (a press and its release can land in the same step). */
-  pressX = -1;
-  pressY = -1;
+  pressX = NO_POINTER;
+  pressY = NO_POINTER;
   down = false;
   pressed = false;
   released = false;

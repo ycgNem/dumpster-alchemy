@@ -4,6 +4,7 @@ import { ITEMS, JUNK_CHAIN, type ItemId } from '../data/items';
 import { TUNING } from '../data/tuning';
 import { Rng } from '../engine/rng';
 import { Board, type Piece } from './board';
+import type { ComboState } from './combo';
 import type { GameEvent } from './events';
 import { rollJackpotAt, rollTruckLoad } from './loads';
 
@@ -75,6 +76,10 @@ export interface Order {
    * `itemPay(o, id)` (orders.ts) for a price tag.
    */
   payMul: number;
+  /** Alchemy: a Mystery Stew was poured on this order (patience refilled, pay x2; once per order). */
+  stewed?: boolean;
+  /** Alchemy: the recipe (its result id) whose riddle this raccoon is sharing, if any. */
+  riddle?: ItemId;
 }
 
 export interface Drag {
@@ -118,6 +123,15 @@ export interface NightStats {
   /** Jackpot orders filled tonight, and junk gifted back by King-night raccoons. */
   jackpots: number;
   gifts: number;
+  /**
+   * Alchemy (src/game/alchemy.ts): recipes brewed, of them brewed for the first time ever, tools
+   * used, treasures handed to raccoons and the Shinies they paid.
+   */
+  brews: number;
+  newRecipes: number;
+  toolsUsed: number;
+  treasures: number;
+  treasureShinies: number;
 }
 
 export type Status = 'playing' | 'won' | 'lost';
@@ -178,7 +192,70 @@ export interface Mods {
   trucks: number;
   /** The tiers tonight's jackpot may ask for, [min, max], or null for no jackpot. */
   jackpotTiers: readonly [number, number] | null;
+  // v2 cross-system perks (docs/V2.md "Contracts"): the run's Contraband sets these, each system reads its own.
+  /** Chain Gang: cascades also merge diagonal neighbours (src/game/combo.ts). */
+  cascadeDiagonal: boolean;
+  /** Streaker: seconds added to the streak window (src/game/combo.ts). */
+  streakWindowBonus: number;
+  /** The highest streak pay multiplier (src/game/combo.ts; Streaker raises it). */
+  streakMaxMul: number;
+  /** Multiplies the heat every merge, brew and delivery adds to the streak (Rave Night: 2). */
+  streakGainMul: number;
+  /** Alchemist's Apron: every brew makes two (src/game/alchemy.ts). */
+  brewTwins: boolean;
+  // v2 run: Contraband and the bosses (src/data/contraband.ts, src/game/perks.ts; the run agent's).
+  /** Compost Heap: a merge with a smelly piece skips a tier. */
+  smellySkip: boolean;
+  /** Raccoon Mafia: caps and cans (junk tiers 1-2) pay this much more in orders. */
+  smallPayMul: number;
+  /** Hot Sauce: making a Toaster zaps a junk neighbour up a tier. */
+  hotSauce: boolean;
+  /** Pyramid Scheme: each scrap order filled tonight makes the next pay this share more (compounding). */
+  scrapPayStep: number;
+  /** Possum Bribe: the next shutdown is forgiven (the Stink drops back instead). */
+  bribe: boolean;
+  /** Double Bagger: pieces the Dumpster spits per click. */
+  dumpsterPerClick: number;
+  /** Overtime at 6 AM is paid again this many times (1: x2 in all; Overtime Junkie 2: x3). */
+  overtimeShare: number;
+  /** Sticky Fingers: chance a delivery pays double. */
+  doublePayChance: number;
+  /** Midnight Snack: deliveries before 1 AM pay this much more. */
+  earlyPayMul: number;
+  /** Golden Goose: two Gull Gangs make the Gull God (and its Golden Egg). */
+  gooseEgg: boolean;
+  /** Fly Farm: Shinies each smelly piece earns per second. */
+  smellyPayPerSec: number;
+  /** Recycling Bin: crushing a piece gives back a Dumpster charge. */
+  crushRefill: boolean;
+  /** Potluck: brewed results (src/data/recipes.ts) pay this much more in orders. */
+  brewPayMul: number;
+  /** The Inspection (boss): cells the Possum condemns each hour (no junk can land there). */
+  condemnPerHour: number;
+  /** Gull God Raid (boss): each hour the God steals your best junk unless a gull was handed in or crushed. */
+  raid: boolean;
 }
+
+/**
+ * What the run's hooks keep during one night (src/game/perks.ts): Contraband counters and the
+ * bosses' state. Condemned cells live on the board (`Board.block`).
+ */
+export interface PerkState {
+  /** The Possum Bribe forgave a shutdown tonight (the run then spends it). */
+  bribed: boolean;
+  /** Fly Farm: Shinies earned but not paid yet (under 1). */
+  flyCash: number;
+  /** The last hour the hourly boss twists ran for. */
+  hour: number;
+  /** Gull God Raid: a gull was handed to a raccoon or crushed since the last raid. */
+  fed: boolean;
+  /** Gull God Raid: pieces the God stole tonight; The Inspection: cells condemned. */
+  stolen: number;
+  condemned: number;
+}
+
+/** Which backdrop the lot is drawn in: each act of a run is somewhere else (docs/V2.md). */
+export type SceneId = 'lot9' | 'marina' | 'trashmore';
 
 /** What wins the night: the Shinies quota, building the Trash King (night 10), or nothing (Endless). */
 export type Goal = 'quota' | 'king' | 'endless';
@@ -209,11 +286,39 @@ export function defaultMods(): Mods {
     compactorPayMul: 1,
     trucks: 1,
     jackpotTiers: TUNING.jackpot.tiers,
+    cascadeDiagonal: false,
+    streakWindowBonus: 0,
+    streakMaxMul: 2,
+    streakGainMul: 1,
+    brewTwins: false,
+    smellySkip: false,
+    smallPayMul: 1,
+    hotSauce: false,
+    scrapPayStep: 0,
+    bribe: false,
+    dumpsterPerClick: 1,
+    overtimeShare: TUNING.shift.overtimeShare,
+    doublePayChance: 0,
+    earlyPayMul: 1,
+    gooseEgg: false,
+    smellyPayPerSec: 0,
+    crushRefill: false,
+    brewPayMul: 1,
+    condemnPerHour: 0,
+    raid: false,
   };
 }
 
 export interface GameState {
   night: number;
+  /** Where tonight is (the act's backdrop). */
+  scene: SceneId;
+  /** Tonight's rule, an id in src/data/nights.ts RULES ('first', 'garbage', ..., 'inspection', 'raid', 'spring'). */
+  rule: string;
+  /** What the HUD calls tonight: "NIGHT 3", "DAILY #12". */
+  label: string;
+  /** The run's Contraband counters and boss state for tonight (src/game/perks.ts). */
+  perk: PerkState;
   seed: number;
   /** Upgrades and the night's difficulty; read-only during a night. */
   mods: Mods;
@@ -251,6 +356,11 @@ export interface GameState {
   bestTier: number;
   /** Every item ever seen (carry it between nights; the Almanac reads it in M6). */
   discovered: Set<ItemId>;
+  /**
+   * Alchemy: every recipe ever brewed, by its result id (src/data/recipes.ts). Seeded from the
+   * save (`NewNight.recipes`); the run carries it on as `Run.recipes`.
+   */
+  discoveredRecipes: Set<ItemId>;
   compactor: { cooldown: number };
   drag: Drag | null;
   flights: Flight[];
@@ -266,6 +376,8 @@ export interface GameState {
   /** When tonight's jackpot raccoon may walk up (seconds after midnight); null once it has. */
   jackpotAt: number | null;
   stats: NightStats;
+  /** Cascades, the Stench Streak and Fever (src/game/combo.ts makes it on first use). */
+  combo?: ComboState;
 }
 
 export interface NewNight {
@@ -274,7 +386,14 @@ export interface NewNight {
   quota?: number;
   goal?: Goal;
   discovered?: Iterable<ItemId>;
+  /** Recipes brewed before (their result ids): the Recipe Book's discoveries. */
+  recipes?: Iterable<ItemId>;
   mods?: Partial<Mods>;
+  /** The act's backdrop (default Lot 9). */
+  scene?: SceneId;
+  /** Tonight's rule id (src/data/nights.ts RULES) and the HUD's label for the night. */
+  rule?: string;
+  label?: string;
 }
 
 export function createState(o: NewNight): GameState {
@@ -283,6 +402,10 @@ export function createState(o: NewNight): GameState {
   const slots = mods.orderSlots;
   const s: GameState = {
     night: o.night ?? 1,
+    scene: o.scene ?? 'lot9',
+    rule: o.rule ?? 'first',
+    label: o.label ?? (o.goal === 'endless' ? 'ENDLESS' : `NIGHT ${o.night ?? 1}`),
+    perk: { bribed: false, flyCash: 0, hour: 0, fed: false, stolen: 0, condemned: 0 },
     seed: o.seed,
     mods,
     rng: new Rng(o.seed),
@@ -304,6 +427,7 @@ export function createState(o: NewNight): GameState {
     goal: o.goal ?? 'quota',
     bestTier: 0,
     discovered: new Set(o.discovered ?? []),
+    discoveredRecipes: new Set(o.recipes ?? []),
     compactor: { cooldown: 0 },
     drag: null,
     flights: [],
@@ -335,6 +459,11 @@ export function createState(o: NewNight): GameState {
       scraps: 0,
       jackpots: 0,
       gifts: 0,
+      brews: 0,
+      newRecipes: 0,
+      toolsUsed: 0,
+      treasures: 0,
+      treasureShinies: 0,
     },
   };
   // The first load is rolled now, so the HUD can show it before the truck arrives.

@@ -16,6 +16,7 @@ import type { GameEvent } from '../game/events';
 import { raccoonDef, wants } from '../game/orders';
 import type { GameState } from '../game/state';
 import { inFlight } from '../game/state';
+import { drawMangeTip, mangeTipDone, mangeTipOn } from '../render/alchemy';
 import { cellFoot, drawItem } from '../render/board';
 import { fillRect, outlineRect } from '../render/greybox';
 import { BOARD, COMPACTOR, DUMPSTER, orderSlot, type Rect } from '../render/layout';
@@ -24,8 +25,9 @@ import { drawNine, drawSprite } from '../render/sprites';
 import { drawText, textWidth, wrapText } from '../render/text';
 import type { View } from '../render/view';
 
-export type HintId = 'dumpster' | 'order' | 'crusher' | 'gull';
-export const HINT_IDS: readonly HintId[] = ['dumpster', 'order', 'crusher', 'gull'];
+// `recipe`: Grandma Mange's first recipe, from night 2 (src/render/alchemy.ts draws it).
+export type HintId = 'dumpster' | 'order' | 'crusher' | 'gull' | 'recipe';
+export const HINT_IDS: readonly HintId[] = ['dumpster', 'order', 'crusher', 'gull', 'recipe'];
 
 const CRUSHER_FILL = 0.6;
 /** The Crusher hint goes once the lot is back under this, or after CRUSHER_MAX_SEC. */
@@ -81,6 +83,7 @@ export class Hints {
   private on(s: GameState, id: HintId): boolean {
     if (this.seen.has(id) || s.status !== 'playing') return false;
     if (id === 'gull') return this.gullUid !== null;
+    if (id === 'recipe') return mangeTipOn(s);
     if (s.night !== 1 || s.goal !== 'quota') return false;
     switch (id) {
       case 'dumpster':
@@ -103,7 +106,10 @@ export class Hints {
       this.up.set(id, t);
       if (id === 'crusher' && (t > CRUSHER_MAX_SEC || (t > 2 && s.board.fillRatio() < CRUSHER_CLEAR))) this.mark('crusher');
       if (id === 'gull' && (t > GULL_SEC || (t > 1.5 && !gullCell(s, this.gullUid)))) this.mark('gull');
+      if (id === 'recipe' && mangeTipDone(s, t)) this.mark('recipe');
     }
+    // (Brewed the Stew some other way first: Grandma has nothing to teach.)
+    if (s.discoveredRecipes.has('stew')) this.mark('recipe');
   }
 
   draw(g: CanvasRenderingContext2D, s: GameState, v: View): void {
@@ -112,6 +118,7 @@ export class Hints {
     if (this.on(s, 'dumpster')) this.drawDumpster(g, v);
     if (this.on(s, 'order')) this.drawOrder(g, s, v, gull);
     if (this.on(s, 'crusher')) this.drawCrusher(g, v);
+    if (!gull && this.on(s, 'recipe')) drawMangeTip(g, s, v, this.up.get('recipe') ?? 0);
   }
 
   private drawDumpster(g: CanvasRenderingContext2D, v: View): void {

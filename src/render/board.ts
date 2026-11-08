@@ -1,17 +1,20 @@
 // The board: dirt cells, the pieces (idle wobble, a squash when they land), drop highlights
 // while dragging, junk arcing in from the truck and the Dumpster, and the piece in your hand.
 import { ITEMS, type ItemId } from '../data/items';
-import { PAL } from '../data/palette';
+import { PAL, type PalName } from '../data/palette';
 import { TUNING } from '../data/tuning';
+import { viewRect } from '../engine/screen';
 import { dropKind, type DropKind, type Target } from '../game/actions';
 import { mergeResult } from '../game/board';
 import { eggResult } from '../game/gulls';
+import { cascadePartner, pendingCascades } from '../game/combo';
 import { inFlight, type Flight, type GameState } from '../game/state';
 import { fillRect, outlineRect, placeholderCell, placeholderItem } from './greybox';
 import { BOARD, CELL, DUMPSTER_MOUTH, cellRect, orderSlot, type Rect } from './layout';
 import { truckBed } from './props';
 import { drawNine, drawSprite, sprite } from './sprites';
-import { liftPx, slideAt, type View } from './view';
+import { drawItemBig } from './menus';
+import { liftPx, slideAt, type Decal, type View } from './view';
 
 const F = TUNING.feel;
 
@@ -93,6 +96,9 @@ export function drawBoard(g: CanvasRenderingContext2D, s: GameState, v: View, ho
     }
   }
 
+  // Tonight's splats soak into the dirt, under everything else.
+  drawDecals(g, v);
+
   drawHighlights(g, s, v, hover);
 
   // Shadows where flying junk is about to land, so you can see it coming, and a little arrow on
@@ -116,6 +122,7 @@ export function drawBoard(g: CanvasRenderingContext2D, s: GameState, v: View, ho
   }
 
   const held = s.drag?.uid ?? -1;
+  const lean = cascadeLean(s, v);
   for (const { p, c, r } of s.board.pieces()) {
     if (inFlight(s, p.uid)) continue;
     const foot = cellFoot(c, r);
@@ -124,14 +131,245 @@ export function drawBoard(g: CanvasRenderingContext2D, s: GameState, v: View, ho
       drawItem(g, p.id, foot.x, foot.y, { alpha: 0.3 });
       continue;
     }
+    if (revealing(v, p.uid)) {
+      // Up above the paw (drawReveals): just its shadow down here.
+      shadow(g, foot.x, foot.y, 0.4);
+      continue;
+    }
     const slide = slideAt(v, p.uid, foot);
     if (slide) {
       drawItem(g, p.id, slide.x, slide.y, { phase: p.uid * 0.37, flip: slide.x > foot.x });
       continue;
     }
     const [sx, sy] = squashOf(v, p.uid);
-    drawItem(g, p.id, foot.x, foot.y + wobble(v, p.uid), { sx, sy, phase: p.uid * 0.37, flip: facing(v, p.id, p.uid) });
+    const ln = lean.get(p.uid);
+    drawItem(g, p.id, foot.x + (ln?.x ?? 0), foot.y + wobble(v, p.uid) + (ln?.y ?? 0), { sx, sy, phase: p.uid * 0.37, flip: facing(v, p.id, p.uid) });
   }
+  // Cascade partners sliding over into the cell they just merged into.
+  for (const sl of v.cascadeSlides) {
+    const k = (v.t - sl.t) / CASCADE_SLIDE_SEC;
+    if (k < 0 || k >= 1) continue;
+    const e = k * k;
+    drawItem(g, sl.id, Math.round(sl.from.x + (sl.to.x - sl.from.x) * e), Math.round(sl.from.y + (sl.to.y - sl.from.y) * e), { sx: 1.0625, sy: 0.9375 });
+  }
+}
+
+// ------------------------------------------------------------------------------ momentum
+
+/** Seconds a cascade partner takes to slide into its twin's cell. */
+const CASCADE_SLIDE_SEC = 0.09;
+
+/**
+ * During a cascade's beat (src/game/combo.ts) the twins tug toward each other and jitter, so you
+ * see what's about to happen: the partner leans up to 4 px in, the new piece 2 px.
+ */
+function cascadeLean(s: GameState, v: View): Map<number, { x: number; y: number }> {
+  const out = new Map<number, { x: number; y: number }>();
+  for (const q of pendingCascades(s)) {
+    const twin = cascadePartner(s, q.c, q.r);
+    const p = s.board.get(q.c, q.r);
+    const t = twin ? s.board.get(twin.c, twin.r) : null;
+    if (!twin || !p || !t) continue;
+    const k = Math.max(0, Math.min(1, 1 - q.t / TUNING.combo.cascadeSec));
+    const dx = Math.sign(q.c - twin.c);
+    const dy = Math.sign(q.r - twin.r);
+    const jig = Math.floor(v.t * 40) % 2;
+    out.set(t.uid, { x: dx * Math.round(1 + k * 3), y: dy * Math.round(1 + k * 3) - jig });
+    out.set(p.uid, { x: -dx * Math.round(k * 2), y: -dy * Math.round(k * 2) - (1 - jig) });
+  }
+  return out;
+}
+
+/** A soft ink shadow on the dirt under (x, y). */
+function shadow(g: CanvasRenderingContext2D, x: number, y: number, alpha: number): void {
+  const a = g.globalAlpha;
+  g.globalAlpha = a * alpha;
+  fillRect(g, { x: x - 10, y: y - 4, w: 20, h: 3 }, 'ink0');
+  fillRect(g, { x: x - 7, y: y - 5, w: 14, h: 5 }, 'ink0');
+  g.globalAlpha = a;
+}
+
+/** Seconds a reveal takes to pop up, and to come back down into its cell. */
+const REVEAL_UP = 0.07;
+const REVEAL_DOWN = 0.12;
+/** How high the 2x result floats above its cell's foot (clear of the paw's hotspot). */
+const REVEAL_LIFT = 22;
+
+function revealing(v: View, uid: number): boolean {
+  const rv = v.reveals.get(uid);
+  return rv !== undefined && v.t - rv.t < REVEAL_UP + rv.hold + REVEAL_DOWN;
+}
+
+/**
+ * Fresh merge, cascade and brew results: each pops up 2x above its cell (above the paw, so it's
+ * never hidden under the cursor at its own reveal), hangs there a beat, then drops back into its
+ * cell with a squash. Drawn over the board, the flights and the particles.
+ */
+export function drawReveals(g: CanvasRenderingContext2D, s: GameState, v: View): void {
+  const held = s.drag?.uid ?? -1;
+  for (const { p, c, r } of s.board.pieces()) {
+    const rv = v.reveals.get(p.uid);
+    if (!rv) continue;
+    if (p.uid === held || inFlight(s, p.uid)) {
+      v.reveals.delete(p.uid);
+      continue;
+    }
+    const e = v.t - rv.t;
+    const end = REVEAL_UP + rv.hold + REVEAL_DOWN;
+    const foot = cellFoot(c, r);
+    if (e >= end) {
+      // Back in its cell: a good hard squash on the landing.
+      v.reveals.delete(p.uid);
+      v.squash.set(p.uid, { t: v.t, px: 3 });
+      continue;
+    }
+    let lift: number;
+    let big: boolean;
+    if (e < REVEAL_UP) {
+      const k = e / REVEAL_UP;
+      lift = REVEAL_LIFT * (1 - (1 - k) * (1 - k));
+      big = k > 0.5;
+    } else if (e < REVEAL_UP + rv.hold) {
+      // A little bob while it shows off.
+      lift = REVEAL_LIFT + Math.round(Math.sin((e - REVEAL_UP) * 18) * 1.5);
+      big = true;
+    } else {
+      const k = (e - REVEAL_UP - rv.hold) / REVEAL_DOWN;
+      lift = REVEAL_LIFT * (1 - k * k);
+      big = k < 0.45;
+    }
+    const y = Math.round(foot.y - lift);
+    if (big) {
+      // A burst of rays behind it while it's up there.
+      const d = ITEMS[p.id];
+      if (e >= REVEAL_UP && e < REVEAL_UP + rv.hold) rays(g, foot.x, y - 30, e, d.tier >= 6 || (d.chain as string) === 'brew');
+      drawItemBig(g, p.id, foot.x, y, 2, p.uid * 0.37);
+    } else drawItem(g, p.id, foot.x, y, { phase: p.uid * 0.37 });
+  }
+}
+
+/** Short rays flicking round a revealed piece (more, and gold, for the good stuff). */
+function rays(g: CanvasRenderingContext2D, x: number, y: number, t: number, gold: boolean): void {
+  const n = gold ? 8 : 4;
+  const spin = Math.floor(t * 12) % 2;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + (spin ? Math.PI / n : 0);
+    const r0 = 30;
+    const r1 = gold ? 40 : 36;
+    for (let d = r0; d < r1; d += 2) {
+      fillRect(g, { x: Math.round(x + Math.cos(a) * d), y: Math.round(y + Math.sin(a) * d * 0.8), w: 2, h: 2 }, gold ? (d % 4 === 0 ? 'yellow' : 'sodium3') : 'bone');
+    }
+  }
+}
+
+// ------------------------------------------------------------------------------ splats
+
+/** Stain colours by what made it: [core, rim, specks]. */
+const STAIN: Record<string, readonly [PalName, PalName, PalName]> = {
+  bag: ['grime1', 'grime0', 'toxic1'],
+  boot: ['dirt0', 'ink2', 'dirt2'],
+  toaster: ['ink1', 'rust0', 'sodium1'],
+  tire: ['ink1', 'ink0', 'dirt0'],
+  cart: ['rust1', 'rust0', 'steel1'],
+  mattress: ['sodium0', 'card0', 'sodium1'],
+  fridge: ['toxic0', 'grime0', 'blue'],
+  car: ['ink0', 'ink1', 'blue'],
+  king: ['sodium0', 'rust0', 'yellow'],
+  gullgang: ['bone', 'fur3', 'grime3'],
+  gullboss: ['white', 'bone', 'grime3'],
+  gullgod: ['white', 'bone', 'yellow'],
+  crater: ['dirt0', 'ink1', 'dirt2'],
+  bomb: ['grime1', 'grime0', 'toxic2'],
+  scorch: ['ink0', 'ink1', 'rust2'],
+  brew: ['toxic0', 'grime0', 'toxic2'],
+};
+const STAIN_DEFAULT: readonly [PalName, PalName, PalName] = ['grime1', 'dirt0', 'grime2'];
+
+const decalCache = new WeakMap<Decal, HTMLCanvasElement | null>();
+
+/** A seeded random in [0, 1) for a decal's shape (the same splat every frame). */
+function seeded(seed: number): () => number {
+  let x = seed >>> 0 || 1;
+  return () => {
+    x = (x + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(x ^ (x >>> 15), x | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+
+/** Draws a splat once: a few overlapping blobs, a dithered rim, droplets, a wet glint. */
+function decalCanvas(d: Decal): HTMLCanvasElement | null {
+  const hit = decalCache.get(d);
+  if (hit !== undefined) return hit;
+  if (typeof document === 'undefined') return null;
+  const pad = 6;
+  const c = document.createElement('canvas');
+  c.width = d.w + pad * 2;
+  c.height = d.h + pad * 2;
+  const g = c.getContext('2d');
+  if (!g) {
+    decalCache.set(d, null);
+    return null;
+  }
+  const rnd = seeded(d.seed);
+  const [core, rim, speck] = STAIN[d.kind] ?? STAIN_DEFAULT;
+  const cx = c.width / 2;
+  const cy = c.height / 2;
+  const blobs = Array.from({ length: 3 + Math.floor(rnd() * 3) }, (_, i) => ({
+    x: i === 0 ? 0 : (rnd() - 0.5) * d.w * 0.55,
+    y: i === 0 ? 0 : (rnd() - 0.5) * d.h * 0.45,
+    rx: d.w * (i === 0 ? 0.42 : 0.18 + rnd() * 0.2),
+    ry: d.h * (i === 0 ? 0.42 : 0.22 + rnd() * 0.2),
+  }));
+  for (let y = 0; y < c.height; y++) {
+    for (let x = 0; x < c.width; x++) {
+      let v = -1;
+      for (const b of blobs) {
+        const dx = (x + 0.5 - cx - b.x) / b.rx;
+        const dy = (y + 0.5 - cy - b.y) / b.ry;
+        v = Math.max(v, 1 - dx * dx - dy * dy);
+      }
+      if (v <= -0.35) continue;
+      const th = ((BAYER4[(y % 4) * 4 + (x % 4)] ?? 0) + 0.5) / 16;
+      let col: PalName | null = null;
+      if (v > 0.18) col = core;
+      else if (v > 0) col = rim;
+      else if (-v / 0.35 < th * 0.6) col = rim;
+      if (col) fillRect(g, { x, y, w: 1, h: 1 }, col);
+    }
+  }
+  // Droplets flung round it, and a wet glint on top.
+  const drops = 3 + Math.floor(rnd() * 5);
+  for (let i = 0; i < drops; i++) {
+    const a = rnd() * Math.PI * 2;
+    const r = 0.55 + rnd() * 0.45;
+    const x = Math.round(cx + Math.cos(a) * (d.w / 2 + 2) * r);
+    const y = Math.round(cy + Math.sin(a) * (d.h / 2 + 2) * r);
+    fillRect(g, { x, y, w: rnd() < 0.4 ? 2 : 1, h: 1 }, rnd() < 0.5 ? speck : core);
+  }
+  if (core !== 'white' && core !== 'bone') {
+    fillRect(g, { x: Math.round(cx - d.w * 0.18), y: Math.round(cy - d.h * 0.2), w: 2, h: 1 }, speck);
+    fillRect(g, { x: Math.round(cx - d.w * 0.18) + 3, y: Math.round(cy - d.h * 0.2), w: 1, h: 1 }, 'bone');
+  }
+  decalCache.set(d, c);
+  return c;
+}
+
+/** Tonight's splats, clipped to the board. */
+function drawDecals(g: CanvasRenderingContext2D, v: View): void {
+  if (v.decals.length === 0) return;
+  g.save();
+  g.beginPath();
+  g.rect(BOARD.x, BOARD.y, BOARD.w, BOARD.h);
+  g.clip();
+  for (const d of v.decals) {
+    const img = decalCanvas(d);
+    if (img) g.drawImage(img, Math.round(d.x - img.width / 2), Math.round(d.y - img.height / 2));
+  }
+  g.restore();
 }
 
 function drawHighlights(g: CanvasRenderingContext2D, s: GameState, v: View, hover: Target): void {
@@ -165,8 +403,10 @@ function flightStart(f: Flight): { x: number; y: number } {
   // (Garbage Day's second truck tips from its own bed: `slot` 1.)
   if (f.from === 'truck') return truckBed(f.slot);
   // Gulls come in off the sky, from whichever side is nearer.
-  if (f.from === 'gull') return { x: f.c < 4 ? -24 : 664, y: 14 + (f.uid % 3) * 10 };
-  if (f.from === 'egg') return { x: cellFoot(f.c, f.r).x, y: -24 };
+  // (From past the visible edge, margins and all: src/engine/screen.ts.)
+  const v = viewRect();
+  if (f.from === 'gull') return { x: f.c < 4 ? Math.min(-24, v.x - 16) : Math.max(664, v.x + v.w + 16), y: 14 + (f.uid % 3) * 10 };
+  if (f.from === 'egg') return { x: cellFoot(f.c, f.r).x, y: Math.min(-24, v.y - 16) };
   return { x: DUMPSTER_MOUTH.x, y: DUMPSTER_MOUTH.y + 16 };
 }
 

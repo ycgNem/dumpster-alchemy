@@ -8,6 +8,7 @@
 import type { GameEvent } from '../game/events';
 import { buildChain, type Chain } from './engine';
 import { MusicPlayer, type TrackId } from './music';
+import { runSound, type RunKind } from './run';
 import { eventSound, remember, startSound, uiSound, type Sound } from './sfx';
 import { clamp } from './synth';
 
@@ -90,6 +91,9 @@ function play(sound: Sound | null): void {
 
 export function playEvent(e: GameEvent): void {
   remember(e);
+  // The Raccoon Rave drives the music (double-time and the rave layer) even while muted.
+  if (e.type === 'feverStart') music?.setFever(true);
+  else if (e.type === 'feverEnd' || e.type === 'nightWon' || e.type === 'nightLost') music?.setFever(false);
   if (!ctx || muted) return;
   play(eventSound(e));
 }
@@ -97,6 +101,12 @@ export function playEvent(e: GameEvent): void {
 export function playUi(kind: 'hover' | 'click' | 'back'): void {
   if (!ctx || muted) return;
   play(uiSound(kind));
+}
+
+/** A run-flow sound a scene makes itself (Contraband picks, the map, strikes, the run's end). */
+export function playRun(kind: RunKind): void {
+  if (!ctx || muted) return;
+  play(runSound(kind));
 }
 
 export function setMuted(m: boolean): void {
@@ -111,6 +121,8 @@ export function isMuted(): boolean {
 
 export function setMusic(track: 'title' | 'night' | 'report' | null): void {
   wantTrack = track;
+  // A new scene (or a new night) starts with no Rave going.
+  music?.setFever(false);
   music?.set(track);
 }
 

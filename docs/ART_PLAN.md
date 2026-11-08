@@ -3,7 +3,9 @@
 ## The PixelLab cap
 
 - **50 generations** for this build, set by the user on 2026-11-07.
-- Balance at the start: **895.9** generations remaining, so the **floor is 845.9**. Stop there.
+- Balance at the start: **895.9** generations remaining, so the **floor was 845.9**.
+- **v2 (2026-11-07): +100 generations** for the map scene and the v2 content. Balance 855.9 when
+  it was granted, so the **floor is now 745.9**. Stop there.
 - Generations only; the USD credit balance ($2.00) is never spent.
 - Check `get_balance` before and after each batch. Log every job in `art-src/prompts.md`
   (prompt, tool, size, cost, kept or not).

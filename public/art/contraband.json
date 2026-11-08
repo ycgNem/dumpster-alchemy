@@ -1,0 +1,329 @@
+{
+ "sprites": {
+  "perk_compost": {
+   "x": 0,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "uncommon"
+  },
+  "perk_mafia": {
+   "x": 24,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "common"
+  },
+  "perk_hotsauce": {
+   "x": 48,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "uncommon"
+  },
+  "perk_pyramid": {
+   "x": 72,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "common"
+  },
+  "perk_bribe": {
+   "x": 96,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "rare"
+  },
+  "perk_doublebag": {
+   "x": 120,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "common"
+  },
+  "perk_whisperer": {
+   "x": 144,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "common"
+  },
+  "perk_junkie": {
+   "x": 168,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "uncommon"
+  },
+  "perk_chaingang": {
+   "x": 192,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "rare"
+  },
+  "perk_streaker": {
+   "x": 216,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "uncommon"
+  },
+  "perk_apron": {
+   "x": 240,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "rare"
+  },
+  "perk_sticky": {
+   "x": 264,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "common"
+  },
+  "perk_crusherpro": {
+   "x": 288,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "common"
+  },
+  "perk_freshener": {
+   "x": 312,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "common"
+  },
+  "perk_owl": {
+   "x": 336,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "common"
+  },
+  "perk_spender": {
+   "x": 360,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "uncommon"
+  },
+  "perk_snack": {
+   "x": 384,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "common"
+  },
+  "perk_goose": {
+   "x": 408,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "rare"
+  },
+  "perk_flyfarm": {
+   "x": 432,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "uncommon"
+  },
+  "perk_clearance": {
+   "x": 456,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "common"
+  },
+  "perk_recycler": {
+   "x": 480,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "common"
+  },
+  "perk_junkmail": {
+   "x": 504,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "uncommon"
+  },
+  "perk_ratrace": {
+   "x": 528,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "uncommon"
+  },
+  "perk_recipecard": {
+   "x": 552,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "common"
+  },
+  "perk_biglid": {
+   "x": 576,
+   "y": 0,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ],
+   "rarity": "common"
+  }
+ }
+}

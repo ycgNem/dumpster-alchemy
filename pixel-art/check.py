@@ -143,7 +143,9 @@ def contract() -> dict[str, dict[str, tuple]]:
         'dumpster_closed': (48, 48, 1), 'dumpster_open': (48, 48, 1), 'dumpster_rattle': (48, 48, 2),
         'compactor_idle': (48, 48, 1), 'compactor_crush': (48, 48, 3),
     }
-    T['backdrop'] = {'backdrop': (640, 360, (1, 2)), 'moon': (32, 32, 1), 'gull_fly': (16, 16, 2)}   # M7 sky
+    # v2: one wide panorama per scene (960 x 640, the stage at 160,140), 2 frames (the streetlight flicker)
+    T['backdrop'] = {**{f'backdrop_{s}': (960, 640, (1, 2)) for s in ('lot9', 'marina', 'trashmore')},
+                     'moon': (32, 32, 1), 'gull_fly': (16, 16, 2)}   # M7 sky
     T['logo'] = {'logo': (('<=', 240), ('<=', 96), 1)}
     T['board'] = {
         'cell_a': (32, 32, 1), 'cell_b': (32, 32, 1),
@@ -170,7 +172,29 @@ def contract() -> dict[str, dict[str, tuple]]:
         'fx_puff': (16, 16, 6), 'fx_fly': (4, 4, 2), 'fx_spark': (8, 8, 4),
         'fx_pop': (32, 32, 4), 'fx_feather': (8, 8, 2), 'fx_drip': (4, 6, 3),
     }
+    # v2 (art agent): recipe results, Contraband stickers, the county map
+    T['recipes'] = {f'item_{i}': (32, 32, (1, 2)) for i in brew_ids()}
+    T['contraband'] = {f'perk_{i}': (24, 24, 1) for i in contraband_ids()}
+    T['map'] = {
+        'map_bg': (960, 640, 1), 'map_node_boss': (32, 32, 1),
+        **{f'map_node_{n}': (24, 24, 1) for n in ('night', 'done', 'locked')},
+        'map_you': (32, 24, (1, 2)),
+        **{f'map_tag_{n}': (14, 14, 1) for n in ('loot', 'shop', 'juice', 'elite')},
+    }
     return T
+
+
+def brew_ids() -> list[str]:
+    m = re.search(r'const BREW = \[(.*?)\] as const', (ROOT / 'src' / 'data' / 'items.ts').read_text(encoding='utf-8'), re.S)
+    return re.findall(r"\[\s*'(\w+)'", m.group(1)) if m else []
+
+
+def contraband_ids() -> list[str]:
+    p = ROOT / 'src' / 'data' / 'contraband.ts'
+    if not p.exists():
+        return []
+    chunks = re.split(r"\bid:\s*'", p.read_text(encoding='utf-8'))[1:]
+    return [re.match(r'(\w+)', c).group(1) for c in chunks if re.search(r'\brarity:', c.split("id:")[0])]
 
 
 NINE_SLICE = {'board_frame', 'panel', 'paper', 'button', 'button_down', 'speech', 'clipboard', 'price_tag'}

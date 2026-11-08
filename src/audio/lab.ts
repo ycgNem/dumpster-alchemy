@@ -5,9 +5,10 @@
 import type { GameEvent } from '../game/events';
 import { JUNK_CHAIN, type ItemId } from '../data/items';
 import { RACCOONS } from '../data/raccoons';
-import { initAudio, isMuted, playEvent, playUi, setIntensity, setMusic, setMuted } from './index';
+import { initAudio, isMuted, playEvent, playRun, playUi, setIntensity, setMusic, setMuted } from './index';
 import { MIX, buildChain } from './engine';
 import { renderSong, type TrackId } from './music';
+import { runSound, type RunKind } from './run';
 import { eventSound, remember, startSound, uiSound, type Sound } from './sfx';
 import { seedRandom } from './synth';
 
@@ -20,8 +21,10 @@ interface Case {
   /** Several events at once (the stress test). */
   evs?: GameEvent[];
   ui?: UiKind;
-  /** [song, intensity, solo layer]. */
-  song?: readonly [TrackId, number, number?];
+  /** A run-flow sound a scene plays itself (src/audio/run.ts). */
+  run?: RunKind;
+  /** [song, intensity, solo layer, Raccoon Rave on]. */
+  song?: readonly [TrackId, number, number?, boolean?];
   /** Part of the loudness reference (plain junk merges). */
   ref?: boolean;
   /** Meant to be soft (hover ticks, music beds). */
@@ -111,6 +114,47 @@ add('menu', 'uiClick', { type: 'uiClick' });
 add('menu', 'buy', { type: 'buy', upgrade: 'lid' });
 for (const ui of ['hover', 'click', 'back'] as const) cases.push({ group: 'menu', label: `ui ${ui}`, ui, quietOk: ui === 'hover' });
 
+// momentum (src/audio/momentum.ts): cascades, the streak, the Rave, night 1's tire
+for (const links of [2, 3, 4, 6]) add('momentum', `cascade x${links}`, { type: 'cascade', links, id: 'bag', c: 4, r: 3, fc: 3, fr: 3 });
+for (const step of [1, 2, 3]) add('momentum', `streak step ${step}`, { type: 'streak', step, mul: [1, 1.25, 1.5, 2][step] ?? 2 });
+add('momentum', 'streak cooled', { type: 'streak', step: 0, mul: 1 }, { quietOk: true });
+add('momentum', 'feverStart (RAVE)', { type: 'feverStart', mul: 3, sec: 8 }, { secs: 3 });
+add('momentum', 'feverEnd', { type: 'feverEnd' });
+add('momentum', 'fell off the truck', { type: 'fellOff', id: 'tire', c: 4, r: 2 }, { secs: 3 });
+
+// alchemy: brews and tools (src/audio/momentum.ts)
+const brewEv = (to: ItemId, kind: 'tool' | 'treasure', first: boolean): GameEvent => ({ type: 'brew', a: 'cap', b: 'can', to, kind, c: 4, r: 3, fc: 3, fr: 3, first });
+add('alchemy', 'brew treasure', brewEv('chime', 'treasure', false));
+add('alchemy', 'brew tool', brewEv('stew', 'tool', false));
+add('alchemy', 'brew, first!', brewEv('icecream', 'treasure', true), { secs: 3 });
+for (const tool of ['elecsoup', 'magnet', 'bagbomb', 'tirefire', 'blanket', 'stew', 'bootcoffee', 'forkgull', 'chum', 'leftovers'] as const) {
+  add('alchemy', `tool ${tool}`, { type: 'toolUsed', id: tool, c: 4, r: 3, cells: [{ c: 4, r: 3, id: 'can' }] });
+}
+
+// the run (src/audio/run.ts): Contraband, the map, the bosses, strikes and the run's end
+const runCase = (label: string, run: RunKind, extra: Partial<Case> = {}): void => {
+  cases.push({ group: 'run', label, run, ...extra });
+};
+runCase('Contraband picked', 'pick');
+runCase('Contraband bought', 'buy');
+runCase('Contraband sold', 'sell');
+runCase('reroll', 'reroll');
+runCase('map fork chosen', 'fork');
+runCase('truck drives to the node', 'drive');
+runCase('strike stamp', 'strike');
+runCase('FIRED', 'fired', { secs: 4 });
+runCase('run won', 'runWon', { secs: 3 });
+runCase('Daily card copied', 'copy');
+add('run', 'perk pip', { type: 'perk', id: 'sticky', text: 'STICKY FINGERS x2!' });
+add('run', 'perk: bribe', { type: 'perk', id: 'bribe', text: 'BRIBED!' });
+runCase('Inspection intro', 'condemn');
+add('run', 'Inspection: condemn', { type: 'boss', what: 'condemn', c: 4, r: 3 });
+runCase('Gull God Raid intro', 'godCry');
+add('run', 'Raid: God steals', { type: 'boss', what: 'raid', c: 4, r: 3, id: 'fridge' });
+add('run', 'Raid: fed chirp', { type: 'boss', what: 'fed' });
+add('run', 'Raid: flies on', { type: 'boss', what: 'pass' });
+runCase('Spring Cleaning fanfare', 'spring');
+
 // music (rendered, not part of the loudness rule)
 const songs: [TrackId, number][] = [
   ['title', 0],
@@ -122,6 +166,8 @@ const songs: [TrackId, number][] = [
   ['report', 0],
 ];
 for (const s of songs) cases.push({ group: 'music', label: `${s[0]} @${s[1]}`, song: s, secs: 12, quietOk: true, noLoudness: true });
+// the Raccoon Rave: double-time and the rave layer on the night
+for (const x of [0.2, 0.8]) cases.push({ group: 'music', label: `night @${x} RAVE`, song: ['night', x, undefined, true], secs: 12, quietOk: true, noLoudness: true });
 ['base', 'hats', 'bass', 'beat', 'organ', 'panic'].forEach((name, i) => {
   cases.push({ group: 'layers', label: `night solo ${name}`, song: ['night', 1, i], secs: 12, quietOk: true, noLoudness: true });
 });
@@ -168,6 +214,7 @@ const SR = 44100;
 
 function soundsOf(c: Case): Sound[] {
   if (c.ui) return [uiSound(c.ui)];
+  if (c.run) return [runSound(c.run)];
   const evs = c.evs ?? (c.ev ? [c.ev] : []);
   return evs.map((e) => eventSound(e)).filter((s): s is Sound => s !== null);
 }
@@ -191,7 +238,7 @@ async function render(c: Case, idx: number, raw: boolean): Promise<AudioBuffer> 
     sfx = chain.sfx;
     music = chain.music;
   }
-  if (c.song) renderSong(ctx, music, c.song[0], c.song[1], secs - 0.3, c.song[2]);
+  if (c.song) renderSong(ctx, music, c.song[0], c.song[1], secs - 0.3, c.song[2], c.song[3] ?? false);
   for (const s of soundsOf(c)) startSound({ ctx, dest: sfx, t: 0.05 }, s);
   return ctx.startRendering();
 }
@@ -374,6 +421,16 @@ stopBtn.onclick = () => {
   setTrackUi('');
 };
 musicRow.append(stopBtn);
+// The Raccoon Rave: the night song goes double-time with the rave layer (and the air horn).
+const raveBtn = el('button', { textContent: 'RAVE' });
+let raving = false;
+raveBtn.onclick = () => {
+  initAudio();
+  raving = !raving;
+  playEvent(raving ? { type: 'feverStart', mul: 3, sec: 8 } : { type: 'feverEnd' });
+  raveBtn.classList.toggle('on', raving);
+};
+musicRow.append(raveBtn);
 const slider = el('input', { type: 'range', min: '0', max: '1', step: '0.01', value: '0' });
 const sliderVal = el('span', {}, '0.00');
 slider.oninput = () => {
@@ -409,6 +466,7 @@ cases.forEach((c) => {
     initAudio();
     c.setup?.();
     if (c.ui) playUi(c.ui);
+    if (c.run) playRun(c.run);
     for (const e of c.evs ?? (c.ev ? [c.ev] : [])) playEvent(e);
   };
   row.append(b);

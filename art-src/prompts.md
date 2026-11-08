@@ -1,6 +1,7 @@
 # PixelLab job log
 
 Cap: 50 generations. Start balance 895.9 remaining (2026-11-07), floor 845.9.
+v2 cap: +100 (2026-11-07). Balance 855.9 when granted, **floor 745.9**.
 
 | # | Date | Asset | Tool | Size | Prompt (short) | Cost | Kept? | Running total |
 |---|---|---|---|---|---|---|---|---|
@@ -73,3 +74,74 @@ USD credits untouched. Uploads went through `get_upload_url` (free).
 M7 wave: **8 generations** (jobs 33-40), balance 863.90 → 855.90 (floor 849.9 not reached). Drawn by hand
 with no generation: `possum_walk` (4 frames), `possum_dead`, `moon`, `gull_fly` (2 frames), the dirt
 clean-up and the cap / can rims.
+
+## v2 screen: scene backdrops (screen agent, 2026-11-08)
+
+Budget: at most 12 generations, hard floor **745.9**. USD credits untouched, no SpriteCook. Balance
+851.90 before this batch; 843.90 after it, but the art agent was generating at the same time, so
+this batch's own cost is the 4 jobs below (1 each). Numbered S1-S4 so they don't collide with the
+art agent's rows.
+
+| # | Date | Asset | Tool | Size / settings | Prompt → file | Cost | Kept? |
+|---|---|---|---|---|---|---|---|
+| S1 | 2026-11-08 | backdrop_marina (boats) | create_image_pixen | 128×48, no_bg, side, east, black outline, low detail | "two small fishing boats side by side, side view, each with a hull, a small wheelhouse cabin and a short mast with rigging lines, game sprites" → `dl/backdrop_marina_boats_v1.png` | 1 | Yes: both boats, recoloured to the night ramps by value in `pixel-art/backdrop/marina.py` (the white wheelhouse windows lit sodium), sunk to the waterline, with broken reflections; used 4 times (2 at the quay, 2 in the margins) |
+| S2 | 2026-11-08 | backdrop_trashmore (mountain) | create_image_pixen | 384×96, no_bg, side, black outline, low detail | "huge wide mountain of garbage and junk: old tires, trash bags, fridges, mattresses, broken furniture, a tiny throne made of junk on the very top of the summit, side view" → `dl/backdrop_trashmore_mountain_v1.png` | 1 | Yes, as texture: its dense lower band (rows 40-95) tiled over a scripted mountain outline in three night values, warmed near the summit (`trashmore.py`). Its two thrones and green hills were not used; the throne is drawn by hand |
+| S3 | 2026-11-08 | backdrop_marina (lighthouse) | create_image_pixen | 36×96, no_bg, side, black outline, low detail | "tall lighthouse tower with horizontal stripes, a railed gallery and a lamp room on top, standing on a pile of rocks, side view, game sprite" → `dl/backdrop_marina_lighthouse_v1.png` | 1 | Reference only: 96 px is too tall for the 56 px sky band; redrawn by script at 34 px with its proportions (bands, gallery, lamp room, rocks) |
+| S4 | 2026-11-08 | backdrop_marina (crane) | create_image_pixen | 96×96, no_bg, side, black outline, low detail | "harbor dock crane, steel lattice tower on four legs with a long angled lattice boom and a hanging hook, side view, game sprite" → `dl/backdrop_marina_crane_v1.png` | 1 | Reference only: redrawn by script as a quay crane (A-frame legs, cab, lattice boom into the sky, hook) |
+
+Screen batch: **4 generations** (S1-S4). Drawn by script with no generation: all of Lot 9's widening
+(billboard, water tower, margin junk), the Marina's far shore, water, quay, pilings, gulls, wharf
+planks, harbour lantern, rowboats, crates, traps, buoys, fish bones, and Mount Trashmore's throne,
+beam, heaps, bulldozer, sign and margin junk.
+
+## v2 art: recipes, Contraband, the county map (art agent, 2026-11-08)
+
+Budget: at most 80 generations, stop if the balance would go below **765.9** (hard floor 745.9).
+USD credits untouched, no SpriteCook. Balance **851.90** before the first batch. The screen agent was
+generating at the same time, so this batch's own cost is counted from the rows below (1 each).
+Numbered A1... so they don't collide with the screen agent's S rows. Drafts went straight from the
+job's download URL into `art-src/dl/`; #A5 and #A6 edit the previous job by its URL (no upload).
+
+| # | Date | Asset | Tool | Size / settings | Prompt → file | Cost | Kept? |
+|---|---|---|---|---|---|---|---|
+| A1 | 2026-11-08 | map_bg (Mount Trashmore) | create_image_pixen | 256×192, no_bg, high top-down, black outline, low detail | "huge mountain made of piled garbage, junk and old tires, a big tattered armchair throne on the very top peak, game map landmark" → `dl/map_trashmore_v1.png` | 1 | Base for A5: a good throne, but the mountain came out as grey rock with snow |
+| A2 | 2026-11-08 | map_bg (the pier) | create_image_pixen | 224×128, no_bg, high top-down, black outline, low detail | "small wooden pier jetty going out into the water, two small rowboats and one little fishing boat tied up beside it, wooden posts, game map landmark" → `dl/map_marina_v1.png` | 1 | Yes: the main pier and boats (stray dock bits dropped), one shade darker for the night |
+| A3 | 2026-11-08 | map_bg (Lot 9) | create_image_pixen | 192×128, no_bg, high top-down, black outline, low detail | "small junkyard lot surrounded by a chain-link fence, a tall streetlight at one corner, a dumpster and small piles of trash inside, game map landmark" → `dl/map_lot9_v1.png` | 1 | Yes, as drawn, one shade darker, a sodium pool round its lamp |
+| A4 | 2026-11-08 | map_you | create_image_pixen | 128×32 four-up, no_bg, high top-down, east, black outline, low detail | "row of four separate small beat-up pickup truck sprites with junk piled in the back, evenly spaced, game token" → `dl/map_you_sheet_v1.png` | 1 | Yes (the first, rusty one): a bounce frame and an exhaust puff added |
+| A5 | 2026-11-08 | map_bg (Mount Trashmore) | edit_image_pixen | 256×192 from A1 | "make the whole mountain made of piled garbage instead of rock and snow: black and green trash bags, old tires, cardboard boxes, broken fridges and junk all the way up to the throne; no snow, no rock, no side peaks; keep the armchair throne on top …" → `dl/map_trashmore_edit_v2.png` | 1 | Base for A6: right look, too tall for the top third |
+| A6 | 2026-11-08 | map_bg (Mount Trashmore) | edit_image_pixen | 256×192 → 172×128 from A5 | "the same trash mountain with the armchair throne on top, redrawn smaller at this size …" → `dl/map_trashmore_small_v3.png` | 1 | Yes: one shade darker; the throne recoloured red velvet and gold by hand; the beam, the foothill heaps drawn here |
+| A7 | 2026-11-08 | map_bg (the bait shack) | create_image_pixen | 128×96, no_bg, high top-down, black outline, low detail | "small wooden bait shack on stilts with a little porch, stacked fish crates, a coiled rope and a lamp post beside it, game map landmark" → `dl/map_shack_v1.png` | 1 | Yes: its grass tile cut away so it stands on the map's ground, one shade darker |
+| A8 | 2026-11-08 | map_bg (Mount Trashmore) | edit_image_pixen | 172×128 → 184×88 from A6 | "the same trash mountain with the armchair throne on top, redrawn wider and lower at this size: a broad heap of trash bags, tires, boxes and fridges, the throne still on the peak …" → `dl/map_trashmore_wide_v4.png` | 1 | Yes, replaces A6: the map scene's top bar covers stage y 0-24, so the throne had to sit lower without the mountain reaching the road band |
+| A9 | 2026-11-08 | map_bg (Lot 9) | edit_image_pixen | 192×128 → 136×88 from A3 | "the same fenced junkyard lot with its streetlight, dumpster and crate, redrawn smaller at this size …" → `dl/map_lot9_small_v2.png` | 1 | Yes, replaces A3 (moved to the top-left, where the Contraband slots don't cover it): a stray tile dropped, the lamp's arm and bulb redrawn by hand |
+
+Art batch: **9 generations** (A1-A9), all 1 each. Balance 851.90 → 795.90 over the same time, but
+**not by us**: the director checked `list_images` on 2026-11-08 and the other ~47 were about 44 neon
+glyph/icon sprites and a "void creature" from another project on the same PixelLab account.
+The account is shared, so **count this build's spend from this log, not the balance**. v2 so far:
+13 (S1-S4, A1-A9) of the 100 granted; the build's total is 53 of 150. USD credits untouched
+($2.00). Kept: A2, A4, A7, A8, A9 (A1, A5 and A6 were steps toward A8; A3 was replaced by A9).
+
+Two more requests ("bait shack" and "row of small junk piles") were refused by the rate limit
+(10 jobs at once, shared with the screen agent) and cost nothing.
+
+Drawn by script with no generation: all 20 recipe results (`pixel-art/recipes/build.py`, built
+from the finished junk, gull and cart sprites plus hand-drawn parts), all 25 Contraband stickers
+(`pixel-art/contraband/build.py`), and on the map the sky, hills, sea, lighthouse, ground, quay,
+water, lamps, light pools, fence, junk heaps, toxic puddle, the beam, the four node badges and the
+four reward tags (`pixel-art/map/build.py`).
+
+## v2 polish: Mount Trashmore made huge (polish agent, 2026-11-08)
+
+Budget: at most 4 generations. USD credits untouched ($2.00), no SpriteCook. Balance 795.90 before,
+793.90 after (the account is shared, so count from these rows). Numbered P1... so they don't
+collide with the S and A rows.
+
+| # | Date | Asset | Tool | Size / settings | Prompt → file | Cost | Kept? |
+|---|---|---|---|---|---|---|---|
+| P1 | 2026-11-08 | backdrop_trashmore (mountain body) | create_image_pixen | 768×340, side, black outline, low detail, seed 4108 | "a huge heap of garbage filling the whole frame edge to edge: piled black and green trash bags, old car tires, white fridges lying on their sides, striped mattresses, cardboard boxes, a broken sofa, side view" → `dl/backdrop_trashmore_heap_v2.png` | 1 | Yes, as texture: shrunk 3x (an outline-keeping block pick) for the mountain, 2x for the near heaps, remapped by value into the night ramps in `pixel-art/backdrop/trashmore.py` |
+| P2 | 2026-11-08 | backdrop_trashmore (mountain body) | create_image_pixen | 768×340, side, black outline, low detail, seed 5219 | "a dense pile of junk filling the whole frame edge to edge: stacked old mattresses, white fridges and washing machines, piles of car tires, black trash bags, broken wooden chairs, a rusty shopping cart, side view" → `dl/backdrop_trashmore_heap_v3.png` | 1 | Yes, as texture: shrunk 4x, laid in patches over P1 so the mountain shows fridges, washers and mattress slabs among the bags |
+
+Polish batch: **2 generations** (P1-P2). Drawn by script with no generation: the mountain's outline
+(a dome from the far-left margin to a summit at stage (492, -40)), the junk poking out of the ridge,
+the HUD darkening, the throne's warm light, the red velvet throne, the beam, the gulls, and the
+near heaps' layout. v2 total: 15 (S1-S4, A1-A9, P1-P2).

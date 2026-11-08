@@ -1,0 +1,244 @@
+{
+ "sprites": {
+  "item_chime": {
+   "x": 0,
+   "y": 0,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  },
+  "item_stew": {
+   "x": 64,
+   "y": 0,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  },
+  "item_bagbomb": {
+   "x": 128,
+   "y": 0,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  },
+  "item_burrito": {
+   "x": 192,
+   "y": 0,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  },
+  "item_piggyboot": {
+   "x": 256,
+   "y": 0,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  },
+  "item_bootcoffee": {
+   "x": 320,
+   "y": 0,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  },
+  "item_elecsoup": {
+   "x": 384,
+   "y": 0,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  },
+  "item_magnet": {
+   "x": 448,
+   "y": 0,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  },
+  "item_forkgull": {
+   "x": 512,
+   "y": 0,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  },
+  "item_chum": {
+   "x": 576,
+   "y": 0,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  },
+  "item_tirefire": {
+   "x": 0,
+   "y": 32,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  },
+  "item_blanket": {
+   "x": 64,
+   "y": 32,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  },
+  "item_leftovers": {
+   "x": 128,
+   "y": 32,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  },
+  "item_truckshoe": {
+   "x": 192,
+   "y": 32,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  },
+  "item_rotisserie": {
+   "x": 256,
+   "y": 32,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  },
+  "item_gokart": {
+   "x": 320,
+   "y": 32,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  },
+  "item_getaway": {
+   "x": 384,
+   "y": 32,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  },
+  "item_shopbed": {
+   "x": 448,
+   "y": 32,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  },
+  "item_panicroom": {
+   "x": 512,
+   "y": 32,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  },
+  "item_icecream": {
+   "x": 576,
+   "y": 32,
+   "w": 32,
+   "h": 32,
+   "frames": 2,
+   "fps": 2,
+   "anchor": [
+    16,
+    31
+   ]
+  }
+ }
+}

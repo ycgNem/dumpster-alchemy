@@ -8,6 +8,7 @@
 // The first time he walks on each night he wears a name tag ("INSPECTOR POSSUM"): at 32 px, a
 // white-faced possum in a suit could be anybody (docs/CRITIC2.md N-P2-15).
 import { TUNING } from '../data/tuning';
+import { viewRect } from '../engine/screen';
 import type { GameEvent } from '../game/events';
 import type { GameState } from '../game/state';
 import { stinkWarnAt } from '../game/stink';
@@ -24,6 +25,8 @@ type Mode = 'off' | 'in' | 'stand' | 'out' | 'march' | 'verdict' | 'flop' | 'pac
 const LANE_Y = TRUCK_LANE.y + TRUCK_LANE.h - 2;
 const FENCE_Y = 55;
 const OFF_X = -30;
+/** Off the visible edge, margins and all (src/engine/screen.ts), so he never pops in or out in view. */
+const offX = (): number => Math.min(OFF_X, viewRect().x - 24);
 /** Where he stands to warn you: left of the board's top corner, clear of the truck. */
 const STAND_X = 156;
 /** Where he stops to shut you down. */
@@ -67,7 +70,7 @@ function introduce(): void {
 export function resetPossum(s?: GameState): void {
   const fence = s ? twistOf(s) === 'inspection' : false;
   P.mode = fence ? 'pace' : 'off';
-  P.x = fence ? PACE_MIN + 40 : OFF_X;
+  P.x = fence ? PACE_MIN + 40 : offX();
   P.dir = 1;
   P.t = 0;
   P.walked = 0;
@@ -116,7 +119,7 @@ export function updatePossum(s: GameState, dt: number): void {
     if (s.stink >= warnAt && (P.mode === 'off' || P.mode === 'out' || P.mode === 'pace')) go('in', fence ? Math.max(PACE_MIN, Math.min(PACE_MAX, P.x)) : STAND_X, WALK * 1.5);
     else if (s.stink < rearm && (P.mode === 'in' || P.mode === 'stand')) {
       if (fence) go('pace', P.x, PACE);
-      else go('out', OFF_X, WALK);
+      else go('out', offX(), WALK);
     }
   }
   switch (P.mode) {
@@ -125,7 +128,7 @@ export function updatePossum(s: GameState, dt: number): void {
     case 'march':
       if (walkTo(P.to, P.speed, dt)) {
         if (P.mode === 'in') go('stand', P.x, 0);
-        else if (P.mode === 'out') go('off', OFF_X, 0);
+        else if (P.mode === 'out') go('off', offX(), 0);
         else go(P.thenFlop && s.endReason !== 'stinkAfterQuota' ? 'flop' : 'verdict', P.x, 0);
       }
       break;

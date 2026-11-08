@@ -151,12 +151,15 @@ file with the same name:
 public/art/items.png + items.json       both chains, Golden Egg, Bin Juice     (key-art agent)
 public/art/cast.png + cast.json         raccoons, Inspector Possum             (key-art agent)
 public/art/props.png + props.json       truck, Dumpster, Compactor             (key-art agent)
-public/art/backdrop.png + backdrop.json Lot 9 at night                         (key-art agent)
+public/art/backdrop.png + backdrop.json the scene panoramas, moon, gull_fly    (screen agent, v2)
 public/art/logo.png + logo.json         the title sign                         (key-art agent)
 public/art/board.png + board.json       dirt cells, ruts, highlights           (hand-art agent)
 public/art/ui.png + ui.json             cardboard, tape, jar, buttons, icons   (hand-art agent)
 public/art/fx.png + fx.json             puffs, flies, sparks, pops, feathers   (hand-art agent)
 public/art/font_marker.png + .json      the marker bitmap font                 (hand-art agent)
+public/art/recipes.png + recipes.json   the 20 recipe results (v2)             (v2 art agent)
+public/art/contraband.png + .json       the 25 Contraband stickers (v2)        (v2 art agent)
+public/art/map.png + map.json           the county map, nodes, truck, tags (v2) (v2 art agent)
 ```
 
 Family JSON (every size in logical pixels, 1x):
@@ -185,7 +188,7 @@ Family JSON (every size in logical pixels, 1x):
 | `truck_dump` | 112 × 64 | 3: bed lowered, half, up |
 | `dumpster_closed`, `dumpster_open`, `dumpster_rattle` | 48 × 48 | 1, 1, 2 |
 | `compactor_idle`, `compactor_crush` | 48 × 48 | 1, 3 |
-| `backdrop` | 640 × 360 | 1-2 (the streetlight may flicker) |
+| `backdrop_lot9`, `backdrop_marina`, `backdrop_trashmore` (anchor `[160, 140]`: draw at stage (0, 0); the middle 640 × 360 is the stage) | 960 × 640 | 1-2 (the streetlight may flicker) |
 | `logo` | ≤ 240 × 96 | 1 |
 | `cell_a`, `cell_b` | 32 × 32 | 1 (two dirt variants) |
 | `cell_hover`, `cell_target`, `cell_bad` | 32 × 32 | 1 (overlays) |
@@ -209,6 +212,13 @@ Family JSON (every size in logical pixels, 1x):
 | `price_tag` (9-slice paper tag on a string, the Swap Meet) | 9-slice | — |
 | `up_lid`, `up_hinges`, `up_raccoon`, `up_compactor`, `up_freshener`, `up_owl` (upgrade icons) | 24 × 24 | 1 |
 | `icon_pause`, `icon_play`, `icon_book`, `icon_star`, `icon_lock`, `icon_check`, `icon_cross` | 16 × 16 | 1 |
+| `item_<id>` for every `BREW` id in `src/data/items.ts` (`recipes` atlas; anchor `[16, 31]` like the junk) | 32 × 32 | 2 (fps 2): tools bob a green bubble top-right, treasures flash a glint top-left |
+| `perk_<id>` for every Contraband id (`contraband` atlas; anchor `[12, 12]`, centre; `rarity` in the JSON) | 24 × 24 | 1 (sticker; rim = rarity: steel, blue, gold) |
+| `map_bg` (anchor `[160, 140]`: draw at stage (0, 0); the middle 640 × 360 is the stage) | 960 × 640 | 1 |
+| `map_node_night`, `map_node_done`, `map_node_locked` (bottle-cap badges; anchor centre) | 24 × 24 | 1 |
+| `map_node_boss` (a red cap with a skull, crossed bones; anchor centre) | 32 × 32 | 1 |
+| `map_you` (the crew's pickup; anchor bottom-centre `[16, 23]`) | 32 × 24 | 2 (fps 4, a bounce) |
+| `map_tag_loot`, `map_tag_shop`, `map_tag_juice`, `map_tag_elite` (anchor centre) | 14 × 14 | 1 |
 
 **9-slice**: the entry also has `"slice": [left, top, right, bottom]` borders; the code
 stretches the middle by tiling, never by scaling.

@@ -8,6 +8,7 @@
 import { ITEMS } from '../data/items';
 import { TUNING } from '../data/tuning';
 import type { Piece } from './board';
+import { forgiveShutdown } from './perks';
 import { stinkOut } from './shift';
 import type { GameState } from './state';
 
@@ -131,5 +132,6 @@ function checkStink(s: GameState): void {
   } else if (s.stinkWarned && s.stink < warn - (t.warnAt - t.warnRearm)) {
     s.stinkWarned = false;
   }
-  if (s.stink >= stinkLimit(s) && s.status === 'playing') stinkOut(s);
+  // (The Possum Bribe forgives one shutdown: src/game/perks.ts.)
+  if (s.stink >= stinkLimit(s) && s.status === 'playing' && !forgiveShutdown(s)) stinkOut(s);
 }

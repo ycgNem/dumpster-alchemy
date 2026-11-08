@@ -15,8 +15,12 @@
 // usually kicks a gift one tier above its best item onto the lot, for the build.
 import { ITEMS, junkAt, JUNK_CHAIN, type ItemId } from '../data/items';
 import { RACCOONS, type RaccoonDef } from '../data/raccoons';
+import { isTreasure } from '../data/recipes';
 import { TUNING } from '../data/tuning';
+import { dripRiddle, treasurePay } from './alchemy';
+import { payStreak } from './combo';
 import { gullOrder } from './gulls';
+import { perkPay } from './perks';
 import { launch } from './spawn';
 import { earn } from './shift';
 import type { GameState, Order } from './state';
@@ -107,6 +111,8 @@ function arrive(s: GameState, slot: number): void {
     scrap,
     payMul: payMulFor(s, def, { big, scrap, gull: gull !== null }),
   };
+  // Alchemy: now and then they share a recipe's riddle (src/game/alchemy.ts).
+  dripRiddle(s, slot);
   s.events.push({ type: 'orderArrive', slot, raccoon: def.id, scrap: scrap || undefined });
 }
 
@@ -122,7 +128,8 @@ function payMulFor(s: GameState, def: RaccoonDef, k: Kind): number {
   const O = TUNING.orders;
   let m = def.payMul * s.mods.orderPayMul;
   if (k.big) m *= O.bigSpender.payMul;
-  if (k.scrap) m *= O.scrap.payMul;
+  // (Pyramid Scheme: each scrap order filled tonight makes the next one pay more.)
+  if (k.scrap) m *= O.scrap.payMul * (1 + s.mods.scrapPayStep) ** s.stats.scraps;
   if (k.gull) m *= s.mods.gullPayMul;
   if (k.jackpot) m *= TUNING.jackpot.payMul;
   return m;
@@ -300,6 +307,8 @@ function jackpotArrives(s: GameState, slot: number): void {
 export function wants(s: GameState, slot: number, id: ItemId): boolean {
   const o = s.orders[slot];
   if (!o || o.mood !== 'waiting') return false;
+  // Alchemy: any raccoon takes a treasure, as the whole order (src/game/alchemy.ts).
+  if (isTreasure(id)) return true;
   return o.wants.some((w, k) => w === id && !o.got[k]);
 }
 
@@ -321,19 +330,22 @@ export function deliver(s: GameState, slot: number, c: number, r: number): boole
   const o = s.orders[slot];
   const p = s.board.get(c, r);
   if (!o || !p || o.mood !== 'waiting') return false;
-  const k = o.wants.findIndex((w, j) => w === p.id && !o.got[j]);
+  // Alchemy: a treasure fills the whole order and pays its own value at this order's rate.
+  const treasure = isTreasure(p.id);
+  const k = treasure ? o.got.findIndex((g) => !g) : o.wants.findIndex((w, j) => w === p.id && !o.got[j]);
   if (k < 0) return false;
   const def = raccoonDef(o.raccoon);
   const king = s.goal === 'king';
   s.board.set(c, r, null);
   o.got[k] = true;
-  let shinies = king ? 0 : itemPay(o, p.id);
+  if (treasure) o.got.fill(true);
+  let shinies = king ? 0 : treasure ? treasurePay(o, p.id) : itemPay(o, p.id);
   const complete = o.got.every(Boolean);
   let gift: ItemId | undefined;
   if (complete) {
     if (!king) {
       // The bonus is a share of the whole order's value, by how much patience was left.
-      const all = o.wants.reduce((a, id) => a + itemPay(o, id), 0);
+      const all = treasure ? treasurePay(o, p.id) : o.wants.reduce((a, id) => a + itemPay(o, id), 0);
       shinies += Math.round(all * TUNING.orders.patienceBonus * Math.max(0, o.patience / o.patienceMax));
     }
     o.mood = 'happy';
@@ -344,9 +356,17 @@ export function deliver(s: GameState, slot: number, c: number, r: number): boole
     if (o.scrap) s.stats.scraps++;
     if (king && s.rng.chance(TUNING.king.giftChance)) gift = giftFor(o);
   }
+  // The Stench Streak and the Raccoon Rave multiply the whole delivery (src/game/combo.ts).
+  // The Contraband's pay rules (src/game/perks.ts), then the streak.
+  shinies = perkPay(s, p.id, shinies, slot);
+  shinies = payStreak(s, shinies);
   o.paid += shinies;
   s.stats.itemsDelivered++;
   s.events.push({ type: 'deliver', slot, id: p.id, complete, shinies, jackpot: o.jackpot || undefined, gift });
+  if (treasure) {
+    s.stats.treasures++;
+    s.stats.treasureShinies += shinies;
+  }
   earn(s, shinies);
   if (gift && launch(s, gift, 'kick', TUNING.orders.kickFlightSec, slot)) s.stats.gifts++;
   return true;

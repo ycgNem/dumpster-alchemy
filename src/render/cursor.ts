@@ -7,6 +7,7 @@
 //
 // The hint lasts one frame (drawCursor clears it). If nobody draws the paw for a moment (a scene
 // that doesn't call it), the system cursor comes back by itself.
+import { NO_POINTER } from '../engine/input';
 import { drawSprite, has } from './sprites';
 
 export type CursorHint = 'point' | 'grab' | null;
@@ -67,5 +68,6 @@ export function drawCursor(g: CanvasRenderingContext2D, input: CursorInput): voi
   const paw = input.pointerType !== 'touch' && has(name);
   lastDrawn = performance.now();
   showSystem(!paw);
-  if (paw && inside && input.x >= 0) drawSprite(g, name, Math.round(input.x), Math.round(input.y));
+  // (The pointer can be in the margins, at negative stage coordinates; NO_POINTER is "not yet".)
+  if (paw && inside && input.x > NO_POINTER) drawSprite(g, name, Math.round(input.x), Math.round(input.y));
 }

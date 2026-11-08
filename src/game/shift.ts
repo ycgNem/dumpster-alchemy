@@ -108,7 +108,7 @@ export function endNight(s: GameState, reason: EndReason): void {
 
 /** Made it to 6 AM past the quota: the overtime is paid again (x2 in all). */
 function payOvertime(s: GameState): void {
-  const bonus = Math.round(s.overtimeEarned * TUNING.shift.overtimeShare);
+  const bonus = Math.round(s.overtimeEarned * s.mods.overtimeShare);
   if (bonus <= 0) return;
   s.stats.overtimeBonus = bonus;
   s.purse += bonus;

@@ -15,6 +15,9 @@ pixel-art/
   ui/             cardboard, tape, the Stink jar, icons, the marker font
   fx/             stink puffs, flies, sparks, the merge pop
   backdrop/       Lot 9 at night, plus the sky sprites moon and gull_fly (sky.py)
+  recipes/        v2: the 20 recipe results (build.py), and v2kit.py, the helpers the v2 families share
+  contraband/     v2: the 25 Contraband stickers
+  map/            v2: the county map panorama, node badges, the crew's truck, reward tags
   check.py        checks the atlases against the art contract
   review_m7.py    the M7 review sheets (art-src/review/m7/)
 ```

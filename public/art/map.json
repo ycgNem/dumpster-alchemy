@@ -1,0 +1,124 @@
+{
+ "sprites": {
+  "map_bg": {
+   "x": 0,
+   "y": 0,
+   "w": 960,
+   "h": 640,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    160,
+    140
+   ]
+  },
+  "map_node_boss": {
+   "x": 0,
+   "y": 640,
+   "w": 32,
+   "h": 32,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    16,
+    16
+   ]
+  },
+  "map_node_night": {
+   "x": 32,
+   "y": 640,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ]
+  },
+  "map_node_done": {
+   "x": 56,
+   "y": 640,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ]
+  },
+  "map_node_locked": {
+   "x": 80,
+   "y": 640,
+   "w": 24,
+   "h": 24,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    12,
+    12
+   ]
+  },
+  "map_you": {
+   "x": 104,
+   "y": 640,
+   "w": 32,
+   "h": 24,
+   "frames": 2,
+   "fps": 4,
+   "anchor": [
+    16,
+    23
+   ]
+  },
+  "map_tag_loot": {
+   "x": 168,
+   "y": 640,
+   "w": 14,
+   "h": 14,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    7,
+    7
+   ]
+  },
+  "map_tag_shop": {
+   "x": 182,
+   "y": 640,
+   "w": 14,
+   "h": 14,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    7,
+    7
+   ]
+  },
+  "map_tag_juice": {
+   "x": 196,
+   "y": 640,
+   "w": 14,
+   "h": 14,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    7,
+    7
+   ]
+  },
+  "map_tag_elite": {
+   "x": 210,
+   "y": 640,
+   "w": 14,
+   "h": 14,
+   "frames": 1,
+   "fps": 0,
+   "anchor": [
+    7,
+    7
+   ]
+  }
+ }
+}

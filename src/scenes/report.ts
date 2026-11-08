@@ -2,11 +2,14 @@
 // for a shutdown, where the Stink came from), the numbers, new Almanac finds, the verdict stamp
 // (slammed down a beat after the paper is up), what went in the bank, then Swap Meet / Retry /
 // Title. Night 10 won goes on to the crowning; Endless shows the score.
+import { playRun } from '../audio';
 import { ITEMS, junkAt } from '../data/items';
 import { INSPECTOR } from '../data/raccoons';
 import { TUNING } from '../data/tuning';
 import { H, W } from '../engine/screen';
+import { dateKey } from '../game/meta';
 import { LOST_KEEP, type NightResult, type Run } from '../game/run';
+import { copyText, shareCard, sharePreview } from './share';
 import { drawItem } from '../render/board';
 import { fillRect, placeholderPossum } from '../render/greybox';
 import { bigText, buttonRow, dim, drawClipboard, drawStamp, fmt, type Btn } from '../render/menus';
@@ -26,24 +29,27 @@ export class ReportScene extends MenuScene {
   protected override readonly fade = false;
   private readonly run: Run;
   private readonly res: NightResult;
+  private copiedAt = -9;
 
   constructor(flow: Flow, run: Run, res: NightResult) {
     super(flow);
     this.run = run;
     this.res = res;
+    if (res.daily > 0) flow.meta.lastShare = shareCard(res);
   }
 
   protected buttons(): Btn[] {
     if (this.t < STAMP_AT + 0.3) return [];
     const r = this.res;
     const list: [string, string, Partial<Btn>?][] = [];
-    if (r.crowned) {
+    if (r.daily > 0) {
+      list.push(['copy', this.t - this.copiedAt < 1.5 ? 'Copied!' : 'Copy Card', { keys: ['KeyC'], icon: 'icon_star', tip: 'Copy your share card to the clipboard.' }]);
+    } else if (r.crowned) {
       list.push(['end', 'Crown Him!', { keys: ['Enter', 'Space'], icon: 'icon_star' }]);
-    } else if (r.goal === 'endless') {
-      list.push(['retry', 'Go Again', { keys: ['Enter', 'Space', 'KeyR'], icon: 'icon_play' }]);
-      list.push(['swap', 'Swap Meet', { keys: ['KeyS'] }]);
+    } else if (r.fired) {
+      list.push(['fired', 'Pink Slip', { keys: ['Enter', 'Space'], icon: 'icon_cross' }]);
     } else if (r.won) {
-      list.push(['swap', 'Swap Meet', { keys: ['Enter', 'Space', 'KeyS'], icon: 'icon_play' }]);
+      list.push(['loot', 'Loot!', { keys: ['Enter', 'Space'], icon: 'icon_play', tip: 'A free Contraband pick, then the Swap Meet and the map.' }]);
     } else {
       list.push(['retry', 'Retry', { keys: ['Enter', 'Space', 'KeyR'], icon: 'icon_play', tip: `Play night ${r.night} again. You kept ${Math.round(LOST_KEEP * 100)}% of tonight's Shinies.` }]);
       list.push(['swap', 'Swap Meet', { keys: ['KeyS'], tip: 'Spend the bank first, then try again.' }]);
@@ -53,10 +59,22 @@ export class ReportScene extends MenuScene {
   }
 
   protected press(id: string): void {
-    if (id === 'end') this.flow.theEnd();
+    if (id === 'copy') {
+      copyText(shareCard(this.res));
+      this.copiedAt = this.t;
+      playRun('copy');
+    } else if (id === 'end') this.flow.theEnd();
+    else if (id === 'fired') this.flow.runOver();
+    else if (id === 'loot') this.flow.loot();
     else if (id === 'retry') this.flow.clockIn(true);
     else if (id === 'swap') this.flow.swapMeet();
     else this.flow.title();
+  }
+
+  protected step(dt: number): void {
+    // A strike: the Possum's stamp comes down with a bang (a pass already had its fanfare).
+    const r = this.res;
+    if (this.t >= STAMP_AT && this.t - dt < STAMP_AT && !r.won && r.daily === 0 && r.goal !== 'endless') playRun('strike');
   }
 
   protected paint(g: CanvasRenderingContext2D): void {
@@ -78,10 +96,10 @@ export class ReportScene extends MenuScene {
 
     // The title, kept clear of the possum: 2x if it fits, else a shorter one.
     const room = px - 28 - x;
-    let head = res.goal === 'endless' ? 'ENDLESS SHIFT REPORT' : `NIGHT ${res.night} REPORT`;
-    if (textWidth(head) * 2 > room) head = res.goal === 'endless' ? 'ENDLESS REPORT' : `NIGHT ${res.night}`;
+    let head = `${res.label} REPORT`;
+    if (textWidth(head) * 2 > room) head = res.label;
     bigText(g, head, x, a.y + 4, 2, { color: 'ink0' });
-    drawText(g, res.name, x, a.y + 28, { color: 'ink1' });
+    drawText(g, res.boss ? `${res.name} · BOSS` : res.name, x, a.y + 28, { color: res.boss ? 'rust1' : 'ink1' });
 
     const lines =
       res.endReason === 'clockout'
@@ -113,7 +131,8 @@ export class ReportScene extends MenuScene {
       [res.goal === 'endless' ? 'Score' : 'Shinies', shinies],
       ['Orders filled', String(st.ordersFilled)],
       ['Stormed off', String(st.ordersAngry)],
-      ['Merges', String(st.merges)],
+      // (Alchemy: brews ride along; tonight's first brews also show under NEW.)
+      st.brews > 0 ? ['Merges · brews', `${st.merges} · ${st.brews}`] : ['Merges', String(st.merges)],
     ];
     const right: [string, string][] = [
       ['Best junk', best],
@@ -137,18 +156,28 @@ export class ReportScene extends MenuScene {
     fillLine(g, x, y, a.w - 12);
     y += 5;
     // (The King night pays in junk: what the raccoons kicked back, not "Banked +0".)
-    const banked =
-      res.goal === 'king' && res.banked === 0
-        ? `Gifts from the raccoons: ${res.stats.gifts}`
-        : res.won || res.goal === 'endless'
-          ? `Banked +${fmt(res.banked)}`
-          : `Kept half: +${fmt(res.banked)} of ${fmt(res.purse)}`;
-    drawText(g, banked, x, y, { color: 'ink0' });
-    drawText(g, `Bank: ${fmt(this.run.bank)}`, x, y + 12, { color: 'ink0' });
-    if (res.goal === 'endless') {
-      drawText(g, res.record ? 'NEW BEST!' : `Best: ${fmt(this.run.endlessBest)}`, x, y + 24, { color: res.record ? 'rust1' : 'ink1' });
-    } else if (!res.won) {
-      drawText(g, `Night ${res.night} stays. Retry or shop.`, x, y + 24, { color: 'ink1' });
+    if (res.daily > 0) {
+      // The Daily Dump: the score and the share card.
+      const best = this.flow.meta.daily[dateKey(new Date())] ?? res.purse;
+      drawText(g, `DAILY #${res.daily} SCORE: ${fmt(res.purse)}`, x, y, { color: 'ink0' });
+      drawText(g, sharePreview(res), x, y + 12, { color: 'ink1' });
+      drawText(g, best > res.purse ? `Today's best: ${fmt(best)}` : 'One try a day. Same dump for everyone.', x, y + 24, { color: 'ink1' });
+    } else {
+      const banked =
+        res.goal === 'king' && res.banked === 0
+          ? `Gifts from the raccoons: ${res.stats.gifts}`
+          : res.won
+            ? `Banked +${fmt(res.banked)}`
+            : `Kept half: +${fmt(res.banked)} of ${fmt(res.purse)}`;
+      drawText(g, banked, x, y, { color: 'ink0' });
+      drawText(g, `Bank: ${fmt(this.run.bank)}`, x, y + 12, { color: 'ink0' });
+      if (!res.won) {
+        const S = TUNING.run.strikes;
+        const line = res.fired ? `STRIKE ${res.strikes} of ${S}. You're FIRED.` : `STRIKE ${res.strikes} of ${S}. Night ${res.night} stays: retry or shop.`;
+        drawText(g, line, x, y + 24, { color: 'rust1' });
+      } else if (res.bribed) {
+        drawText(g, "The Possum Bribe bought a pass. It's spent.", x, y + 24, { color: 'toxic0' });
+      }
     }
 
     drawStamp(g, res.won, a.x + a.w - 58, a.y + a.h - 28, this.t - STAMP_AT);
@@ -184,7 +213,7 @@ function verdict(r: NightResult, endTime: number, ot: number): [string, string] 
         ? ['WHIFF! The Possum took the overtime.', `Quota met at ${at(r.quotaMetAt)}, so it's a pass. But the Stink maxed out: -${fmt(st.overtimeLost)} overtime, gone.`]
         : ['Possum caught a whiff, but you made quota.', `Quota met at ${at(r.quotaMetAt)}. A pass, no overtime.`];
     case 'king':
-      return ['THE TRASH KING IS CROWNED.', `Built at ${at(endTime)}. Lot 9 will never smell the same.`];
+      return ['THE TRASH KING IS CROWNED.', `Built at ${at(endTime)}. The county will never smell the same.`];
     case 'endless':
       return ['The Stink won in the end. It always does.', `You lasted till ${at(endTime)}.`];
     case 'quota':

@@ -1,6 +1,7 @@
 // The Dumpster: click it to spit junk onto a random empty cell. Lid charges refill over time.
 import { junkAt } from '../data/items';
 import { TUNING } from '../data/tuning';
+import { feverOn } from './combo';
 import { launch } from './spawn';
 import type { GameState } from './state';
 
@@ -21,13 +22,18 @@ export function updateDumpster(s: GameState, dt: number): void {
 export function clickDumpster(s: GameState): boolean {
   if (s.status !== 'playing') return false;
   const d = s.dumpster;
-  const ok = d.charges > 0 && s.board.empties().length > 0;
+  // The Raccoon Rave (src/game/combo.ts): clicks cost no charge.
+  const free = feverOn(s);
+  const ok = (d.charges > 0 || free) && s.board.empties().length > 0;
   s.events.push({ type: 'dumpsterClick', ok });
   if (!ok) return false;
-  d.charges--;
+  if (!free) d.charges--;
   s.stats.dumpsterClicks++;
-  const tier = s.rng.weighted(TUNING.dumpster.tierOdds) + 1;
-  launch(s, junkAt(tier), 'dumpster', TUNING.dumpster.flightSec);
+  // (Double Bagger: two per click.)
+  for (let i = 0; i < Math.max(1, s.mods.dumpsterPerClick); i++) {
+    const tier = s.rng.weighted(TUNING.dumpster.tierOdds) + 1;
+    launch(s, junkAt(tier), 'dumpster', TUNING.dumpster.flightSec + i * 0.12);
+  }
   return true;
 }
 

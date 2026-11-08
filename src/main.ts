@@ -2,7 +2,8 @@ import './style.css';
 import { initAudio } from './audio';
 import { Input } from './engine/input';
 import { startLoop } from './engine/loop';
-import { Screen } from './engine/screen';
+import { clearFullscreenHotspots, installFullscreen } from './engine/fullscreen';
+import { Screen, backstop } from './engine/screen';
 import { memoryKV, type KV } from './game/save';
 import { drawRotateCard } from './render/rotate';
 import { loadArt } from './render/sprites';
@@ -15,6 +16,8 @@ if (!(view instanceof HTMLCanvasElement)) throw new Error('#view canvas is missi
 
 const screen = new Screen(view);
 const input = new Input(screen);
+// F anywhere, and the fullscreen buttons on the title and in the pause menu.
+installFullscreen(screen);
 
 /**
  * The save's storage: localStorage when the browser allows it, else memory (private windows,
@@ -69,9 +72,20 @@ void loadArt().then((msg) => console.info(msg));
 let clock = 0;
 
 function render(): void {
+  clearFullscreenHotspots();
+  screen.ensureFit();
   // A phone held upright gets the rotate card; the scene waits (it isn't stepped either).
   if (screen.portrait) drawRotateCard(screen.pg, clock);
-  else scene?.draw(screen.g);
+  else {
+    // Scenes draw in stage coordinates. The margins around the stage show whatever they draw
+    // there, over the backstop (sky, lane, dirt) in case they draw nothing.
+    const g = screen.g;
+    g.save();
+    g.translate(screen.stageX, screen.stageY);
+    backstop(g);
+    scene?.draw(g);
+    g.restore();
+  }
   screen.present();
 }
 

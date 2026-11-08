@@ -3,12 +3,12 @@
 // the next load against the room left; lid charges and the Crusher's label; the footer; hover
 // tooltips for the Dumpster, the Crusher and the jar; and the pause and end-of-night overlays.
 import { ITEMS, JUNK_CHAIN, junkAt } from '../data/items';
-import { nightDef } from '../data/nights';
+import { ruleOf } from '../data/nights';
 import { PAL, type PalName } from '../data/palette';
 import { INSPECTOR } from '../data/raccoons';
 import { TUNING } from '../data/tuning';
 import { touchUi } from '../engine/input';
-import { H, W } from '../engine/screen';
+import { H, W, viewRect } from '../engine/screen';
 import { nextCharge } from '../game/dumpster';
 import { clockText } from '../game/shift';
 import { nightLength, nightProgress, type GameState } from '../game/state';
@@ -67,8 +67,8 @@ export function drawHud(g: CanvasRenderingContext2D, s: GameState, v: View, mute
 /** Top: the night and its name on an ink plate (the streetlight never runs through it), the clock. */
 function drawTop(g: CanvasRenderingContext2D, s: GameState, v: View, muted: boolean): void {
   const endless = s.goal === 'endless';
-  const def = nightDef(s.night);
-  const head = endless ? 'ENDLESS' : `NIGHT ${s.night}`;
+  const def = ruleOf(s);
+  const head = endless ? 'ENDLESS' : s.label;
   const name = def.name.toUpperCase();
   // (x 26: the pause button sits left of it, src/scenes/pause.ts)
   const x = 26;
@@ -317,13 +317,14 @@ function drawRightInfo(g: CanvasRenderingContext2D, s: GameState): void {
     drawText(g, lid, r.x + 20, y, { color: d.charges ? 'bone' : 'red', outline: 'ink0' });
     if (d.charges < d.max) drawText(g, `+1 in ${Math.ceil(nextCharge(s))}s`, r.x + 26 + textWidth(lid), y, { color: 'steel3', outline: 'ink0' });
   }
-  drawText(g, 'CRUSHER', r.x + 20, r.y + 50, { color: s.compactor.cooldown > 0 ? 'steel2' : 'bone', outline: 'ink0' });
-  // When it pays (the Industrial Crusher, Bulk Pickup's x3): what a cap is worth in it.
+  // When it pays (the Industrial Crusher, Bulk Pickup's x3): what a cap is worth in it. The line
+  // slides left when it needs to, so the tag always ends inside the stage.
   const pay = crushPay(s, 'can');
-  if (pay > 0) {
-    const tag = s.mods.compactorPayMul > 1 ? `PAYS x${s.mods.compactorPayMul}` : `pays ${pay / 2}/tier`;
-    drawText(g, tag, r.x + 24 + textWidth('CRUSHER'), r.y + 50, { color: 'yellow', outline: 'ink0' });
-  }
+  const tag = pay > 0 ? (s.mods.compactorPayMul > 1 ? `PAYS x${s.mods.compactorPayMul}` : `pays ${pay / 2}/tier`) : '';
+  const cw = textWidth('CRUSHER');
+  const cx = Math.min(r.x + 20, r.x + r.w - cw - (tag ? 4 + textWidth(tag) : 0));
+  drawText(g, 'CRUSHER', cx, r.y + 50, { color: s.compactor.cooldown > 0 ? 'steel2' : 'bone', outline: 'ink0' });
+  if (tag) drawText(g, tag, cx + cw + 4, r.y + 50, { color: 'yellow', outline: 'ink0' });
 }
 
 /**
@@ -347,8 +348,8 @@ function drawFooter(g: CanvasRenderingContext2D): void {
 
 /** The night's name plate at the top left (it's as wide as the name). */
 function nightPlate(s: GameState): Rect {
-  const head = s.goal === 'endless' ? 'ENDLESS' : `NIGHT ${s.night}`;
-  const w = textWidth(head) + 10 + textWidth(nightDef(s.night).name.toUpperCase());
+  const head = s.goal === 'endless' ? 'ENDLESS' : s.label;
+  const w = textWidth(head) + 10 + textWidth(ruleOf(s).name.toUpperCase());
   return { x: 23, y: 3, w: w + 7, h: 16 };
 }
 
@@ -358,7 +359,7 @@ const TIPS: { r: Rect | ((s: GameState) => Rect); key: string; text: (s: GameSta
     r: nightPlate,
     key: 'night',
     side: 'below',
-    text: (s) => `TONIGHT: ${nightDef(s.night).rule}`,
+    text: (s) => `TONIGHT: ${ruleOf(s).rule}`,
   },
   {
     r: DUMPSTER,
@@ -398,7 +399,8 @@ export function drawHudTip(g: CanvasRenderingContext2D, s: GameState, key: strin
 function dim(g: CanvasRenderingContext2D, a: number): void {
   g.globalAlpha = a;
   g.fillStyle = PAL.ink0;
-  g.fillRect(0, 0, W, H);
+  const v = viewRect(); // the whole buffer, margins too
+  g.fillRect(v.x, v.y, v.w, v.h);
   g.globalAlpha = 1;
 }
 
@@ -420,7 +422,7 @@ export function drawEnd(g: CanvasRenderingContext2D, s: GameState, v: View): voi
   const r = { x: W / 2 - 150, y: 64, w: 300, h: 220 };
   if (!drawNine(g, 'clipboard', r) && !drawNine(g, 'paper', r)) paper(g, r);
   drawSprite(g, 'clipboard_clip', W / 2, r.y + 6);
-  drawText(g, won ? `NIGHT ${s.night}: PASSED` : 'SHUT DOWN', W / 2, r.y + 10, { color: won ? 'toxic0' : 'rust1', align: 'center' });
+  drawText(g, won ? `${s.label}: PASSED` : 'SHUT DOWN', W / 2, r.y + 10, { color: won ? 'toxic0' : 'rust1', align: 'center' });
 
   const pose = won ? 'dead' : 'shutdown';
   const fx = r.x + 40;

@@ -4,25 +4,29 @@
 //   npm run sim -- 40 0.8       40 tries, one bot that acts every 0.8 s, in detail
 //   npm run sim -- 40 1.8 n5    night 5 (no upgrades) instead of night 1
 //   npm run sim -- campaign     the ten nights in order with shopping and retries (src/dev/campaign.ts)
+import { isContraband, type ContrabandId } from '../data/contraband';
 import { nightDef } from '../data/nights';
-import { noLevels, type Levels } from '../data/upgrades';
-import { nightMods } from '../game/run';
+import { TUNING } from '../data/tuning';
+import { applyContraband } from '../game/perks';
 import { step } from '../game/step';
-import { createState, type GameState } from '../game/state';
+import { createState, defaultMods, type GameState, type Mods } from '../game/state';
 import { Bot, BOT_DEFAULT, type BotOpts } from './bot';
+import { Builder, BUILDER_DEFAULT } from './builder';
 import { runCampaign } from './campaign';
 
 const argv = (globalThis as { process?: { argv: string[] } }).process?.argv.slice(2) ?? [];
 const nightArg = argv.find((a) => /^n\d+$/.test(a));
-/** `stay`: the bot never clocks out (it always bets on the overtime). `lv<lid><hinges><raccoon><crusher><freshener><owl>`: upgrade levels, e.g. lv000110. */
+/** `stay`: the bot never clocks out (it always bets on the overtime). `+<id>`: hold that Contraband, e.g. +biglid +freshener. */
 const stay = argv.includes('stay');
-const lvArg = argv.find((a) => /^lv\d{6}$/.test(a));
-const nums = argv.filter((a) => a !== nightArg && a !== 'stay' && a !== lvArg);
+const perkArgs = argv.filter((a) => a.startsWith('+')).map((a) => a.slice(1)).filter((a): a is ContrabandId => isContraband(a));
+const nums = argv.filter((a) => a !== nightArg && a !== 'stay' && !a.startsWith('+'));
 const nights = Number(nums[0] ?? 40) || 40;
 const only = nums[1] ? Number(nums[1]) : null;
 const night = nightDef(nightArg ? Number(nightArg.slice(1)) : 1);
 
 const DT = 1 / 60;
+/** Seconds in half an in-game hour (the curve's step). */
+const HALF = TUNING.shift.secondsPerHour / 2;
 
 interface Run {
   s: GameState;
@@ -35,16 +39,14 @@ interface Run {
   curve: { stink: number; fill: number; purse: number; smelly: number }[];
 }
 
-function levels(): Levels {
-  const lv = noLevels();
-  if (!lvArg) return lv;
-  const ids = ['lid', 'hinges', 'raccoon', 'compactor', 'freshener', 'owl'] as const;
-  ids.forEach((id, i) => (lv[id] = Number(lvArg[2 + i] ?? 0)));
-  return lv;
+function mods(): Mods {
+  const m: Mods = { ...defaultMods(), ...night.mods };
+  applyContraband(m, perkArgs);
+  return m;
 }
 
-function playNight(seed: number, bot: Bot): Run {
-  const s = createState({ seed, night: night.night, quota: night.quota, goal: night.goal, mods: nightMods(levels(), night) });
+function playNight(seed: number, bot: { update(s: GameState, dt: number): void }): Run {
+  const s = createState({ seed, night: night.night, quota: night.quota, goal: night.goal, mods: mods(), rule: night.id, scene: night.scene });
   let metAt: number | null = null;
   let sum = 0;
   let n = 0;
@@ -59,13 +61,13 @@ function playNight(seed: number, bot: Bot): Run {
     sum += f;
     n++;
     max = Math.max(max, f);
-    if (s.time >= (curve.length + 1) * 30) curve.push({ stink: s.stink, fill: f, purse: s.purse, smelly: s.ripe.size });
+    if (s.time >= (curve.length + 1) * HALF) curve.push({ stink: s.stink, fill: f, purse: s.purse, smelly: s.ripe.size });
   }
   return { s, metAt, fillAvg: sum / Math.max(1, n), fillMax: max, curve };
 }
 
 function clock(sec: number): string {
-  const mins = Math.floor(sec);
+  const mins = Math.floor((sec / TUNING.shift.secondsPerHour) * 60);
   const h = Math.floor(mins / 60);
   return `${h === 0 ? 12 : h}:${String(mins % 60).padStart(2, '0')}`;
 }
@@ -87,7 +89,8 @@ function runProfile(label: string, o: BotOpts, verbose: boolean): void {
   }
   const runs: Run[] = [];
   for (let i = 1; i <= nights; i++) {
-    const run = playNight(i * 7919, new Bot(o));
+    // (The King night is played by the builder bot, as in the run sim.)
+    const run = playNight(i * 7919, night.goal === 'king' ? new Builder({ ...BUILDER_DEFAULT, thinkSec: o.thinkSec }) : new Bot(o));
     runs.push(run);
     if (!verbose) continue;
     const { s, metAt } = run;
@@ -120,7 +123,7 @@ function runProfile(label: string, o: BotOpts, verbose: boolean): void {
     return xs.length ? String(Math.round(xs.reduce((a, x) => a + f(x), 0) / xs.length)) : '-';
   };
   const ks = Array.from({ length: 12 }, (_, k) => k);
-  console.log(`  by half hour   ${ks.map((k) => pad(clock((k + 1) * 30), 5)).join(' ')}`);
+  console.log(`  by half hour   ${ks.map((k) => pad(clock((k + 1) * HALF), 5)).join(' ')}`);
   console.log(`  stink          ${ks.map((k) => pad(at(k, (x) => x.stink), 5)).join(' ')}`);
   console.log(`  fill %         ${ks.map((k) => pad(at(k, (x) => x.fill * 100), 5)).join(' ')}`);
   console.log(`  smelly pieces  ${ks.map((k) => pad(at(k, (x) => x.smelly), 5)).join(' ')}`);

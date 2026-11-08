@@ -12,7 +12,12 @@ const NIGHT_SEC = TUNING.shift.secondsPerHour * TUNING.shift.hours;
  * (it reaches the 6 AM pace later) and keeps going past it, slowly (see truck.ts for the cap).
  */
 export function truckPressure(s: GameState, time: number): number {
-  if (s.goal !== 'endless') return Math.min(1, Math.max(0, time / NIGHT_SEC));
+  if (s.goal !== 'endless') {
+    // v2: gentle until 1 AM, then up to the peak by 4 AM, then it holds (TUNING.truck.rampFromHour).
+    const T = TUNING.truck;
+    const h = TUNING.shift.secondsPerHour;
+    return Math.min(1, Math.max(0, (time - T.rampFromHour * h) / ((T.rampFullHour - T.rampFromHour) * h)));
+  }
   const E = TUNING.endless;
   return Math.max(0, time / (NIGHT_SEC * E.rampStretch));
 }

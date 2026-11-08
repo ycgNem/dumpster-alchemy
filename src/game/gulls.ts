@@ -145,7 +145,7 @@ function hop(s: GameState, c: number, r: number, eatsUpTo: number): void {
   const [dc, dr] = s.rng.pick(AROUND);
   const tc = c + dc;
   const tr = r + dr;
-  if (!gull || !s.board.inside(tc, tr)) return;
+  if (!gull || !s.board.inside(tc, tr) || s.board.isBlocked(tc, tr)) return;
   const q = s.board.get(tc, tr);
   if (q) {
     const d = ITEMS[q.id];
@@ -164,7 +164,7 @@ function scream(s: GameState, c: number, r: number): void {
   for (const [dc, dr] of AROUND) {
     const nc = c + dc;
     const nr = r + dr;
-    if (!s.board.inside(nc, nr)) continue;
+    if (!s.board.inside(nc, nr) || s.board.isBlocked(nc, nr)) continue;
     const q = s.board.get(nc, nr);
     if (q && !loose(s, q)) continue;
     cells.push([nc, nr]);

@@ -17,6 +17,8 @@ export interface RaccoonDef {
   maxWants: number;
   /** `jackpot`: what they say when they're the night's big order. */
   lines: { arrive: string[]; happy: string[]; angry: string[]; jackpot: string[] };
+  /** How they lead into a recipe's riddle (the alchemy riddle drip, src/render/alchemy.ts). */
+  riddle?: string[];
 }
 
 export const RACCOONS: readonly RaccoonDef[] = [
@@ -34,6 +36,7 @@ export const RACCOONS: readonly RaccoonDef[] = [
       angry: ['FORGET IT.', "I'm telling Linda.", 'Unbelievable.'],
       jackpot: ['Big job: one {item}.', 'Boss wants a {item}. Pronto.'],
     },
+    riddle: ['Word on the lot:', 'Heard a guy say:', "Don't tell Linda:"],
   },
   {
     id: 'linda',
@@ -49,6 +52,7 @@ export const RACCOONS: readonly RaccoonDef[] = [
       angry: ['How common.', 'I have never been so insulted.', 'Ugh. Peasant trash.'],
       jackpot: ['A {item}, darling. I pay well.', 'For the gala: one {item}.'],
     },
+    riddle: ['A little secret, darling:', 'Between us:', 'My decorator swears by it:'],
   },
   {
     id: 'pete',
@@ -64,6 +68,7 @@ export const RACCOONS: readonly RaccoonDef[] = [
       angry: ['*sniff*', "I'm telling my mom.", 'You said BIG.'],
       jackpot: ['I saved up for a {item}!', 'A {item}! A REAL one!'],
     },
+    riddle: ['Wanna hear a riddle?', 'My mom says:', 'I KNOW A SECRET:'],
   },
   {
     id: 'mange',
@@ -79,6 +84,7 @@ export const RACCOONS: readonly RaccoonDef[] = [
       angry: ['Well. I never.', "I'm too old for this.", 'Your mother would be ashamed.'],
       jackpot: ['A {item} for Grandpa, sweetie.', 'Grandma needs a {item}.'],
     },
+    riddle: ['Grandpa used to say:', 'An old family recipe, dear:', 'Back in my day:'],
   },
 ];
 
